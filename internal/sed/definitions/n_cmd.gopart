@@ -1,0 +1,60 @@
+// N_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.) // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.)
+type n_cmd struct {
+	addr   *address
+	append bool // Distinguishes between 'n' (false) and 'N' (true)
+}
+
+func (c *n_cmd) match(line []byte, lineNumber int) bool {
+	return c.addr.match(line, lineNumber)
+}
+
+func (c *n_cmd) String() string {
+	if c != nil && c.addr != nil {
+		if c.append {
+			return fmt.Sprintf("{N command addr:%s}", c.addr.String())
+		}
+		return fmt.Sprintf("{n command addr:%s}", c.addr.String())
+	}
+	return fmt.Sprint("{n/N command}")
+}
+
+func (c *n_cmd) processLine(s *Sed) (bool, error) {
+	if c.append {
+		// N: Append the next line of input to the pattern space
+		nextLine, err := s.input.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				return false, nil
+			}
+			return false, err
+		}
+		s.patternSpace = append(s.patternSpace, newLine...)
+		s.patternSpace = append(s.patternSpace, nextLine...)
+	} else {
+		// n: Print and replace pattern space with the next line
+		if !*quiet {
+			s.printPatternSpace()
+		}
+		nextLine, err := s.input.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				return false, nil
+			}
+			return false, err
+		}
+		s.patternSpace = nextLine
+	}
+	return true, nil
+}
+
+func NewNCmd(pieces [][]byte, addr *address) (*n_cmd, error) {
+	if len(pieces) > 1 {
+		return nil, WrongNumberOfCommandParameters
+	}
+	cmd := &n_cmd{
+		addr:   addr,
+		append: pieces[0][0] == 'N',
+	}
+	return cmd, nil
+}
+// E-OF: N_CMD //

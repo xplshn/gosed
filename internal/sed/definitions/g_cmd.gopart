@@ -1,0 +1,53 @@
+// G_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space.
+type g_cmd struct {
+	addr    *address
+	replace bool
+}
+
+func (c *g_cmd) match(line []byte, lineNumber int) bool {
+	return c.addr.match(line, lineNumber)
+}
+
+func (c *g_cmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.replace {
+				return fmt.Sprintf("{g command with replace addr:%s}", c.addr.String())
+			} else {
+				return fmt.Sprintf("{g command addr:%s}", c.addr.String())
+			}
+		} else {
+			if c.replace {
+				return fmt.Sprint("{g command with replace}")
+			} else {
+				return fmt.Sprint("{Append a newline and the hold space to the pattern space}")
+			}
+		}
+	}
+	return fmt.Sprint("{Append/Replace pattern space with contents of hold space}")
+}
+
+func (c *g_cmd) processLine(s *Sed) (bool, error) {
+	if c.replace {
+		s.patternSpace = copyByteSlice(s.holdSpace)
+	} else {
+		buf := bytes.NewBuffer(s.patternSpace)
+		buf.WriteRune('\n')
+		buf.Write(s.holdSpace)
+		s.patternSpace = buf.Bytes()
+	}
+	return false, nil
+}
+
+func NewGCmd(pieces [][]byte, addr *address) (*g_cmd, error) {
+	if len(pieces) > 1 {
+		return nil, WrongNumberOfCommandParameters
+	}
+	cmd := new(g_cmd)
+	if pieces[0][0] == 'g' {
+		cmd.replace = true
+	}
+	cmd.addr = addr
+	return cmd, nil
+}
+// E-OF: G_CMD //

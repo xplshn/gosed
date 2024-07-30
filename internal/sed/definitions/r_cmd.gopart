@@ -1,0 +1,37 @@
+// R_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)r%20rfile,reading%20the%20next%20input%20line. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)r%20rfile,reading%20the%20next%20input%20line.
+type r_cmd struct {
+	addr *address
+	text []byte
+}
+
+func (c *r_cmd) match(line []byte, lineNumber int) bool {
+	return c.addr.match(line, lineNumber)
+}
+
+func (c *r_cmd) String() string {
+	if c != nil && c.addr != nil {
+		return fmt.Sprintf("{r command addr:%s}", c.addr.String())
+	}
+	return fmt.Sprint("{r command}")
+}
+
+func (c *r_cmd) processLine(s *Sed) (bool, error) {
+	// print output space
+	if c.text != nil {
+		s.outputFile.Write(c.text)
+	}
+	return false, nil
+}
+
+func NewRCmd(line []byte, addr *address) (*r_cmd, error) {
+	line = line[1:]
+	cmd := new(r_cmd)
+	cmd.addr = addr
+	if len(line) > 0 {
+		cmd.text = line
+	} else {
+		cmd.text = nil
+	}
+	return cmd, nil
+}
+// E-OF: R_CMD //

@@ -37,6 +37,8 @@ import (
 	"strconv"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/xplshn/a-utils/pkg/ccmd"
 )
 
 const (
@@ -51,8 +53,6 @@ func init() {
 	versionString = fmt.Sprintf("%d.%d.%d", versionMajor, versionMinor, versionPoint)
 }
 
-var show_version = flag.Bool("version", false, "Show version information.")
-var show_help = flag.Bool("h", false, "Show help information.")
 var quiet = flag.Bool("n", false, "Don't print the pattern space at the end of each script cycle.")
 var script = flag.String("e", "", "The script used to process the input file.")
 var script_file = flag.String("f", "", "Specify a file to read as the script. Ignored if -e present")
@@ -94,6 +94,7 @@ func copyByteSlice(a []byte) []byte {
 	return newSlice
 }
 
+/*
 func usage() {
 	// only show usage once.
 	if !usageShown {
@@ -102,6 +103,7 @@ func usage() {
 		flag.PrintDefaults()
 	}
 }
+*/
 
 var inputFilename string
 
@@ -246,14 +248,32 @@ func Main() {
 	var err error
 	s := new(Sed)
 	s.Init()
+
+	printHelpPage := func() {
+		// only show and calculate usage once
+		if !usageShown {
+			cmdInfo := &ccmd.CmdInfo{
+				Authors:     []string{"Geoffrey Clements", "xplshn"},
+				Name:        "sed",
+				Synopsis:    "[options] <script> <input_file>",
+				Description: "Unix's standard Stream Editor",
+				Notes:       "This version of sed is a redistribution with modifications of `https://github.com/baldmountain/gosed`",
+				Since:       2009,
+			}
+			// Calculate/Generate the help page
+			helpPage, err := cmdInfo.GenerateHelpPage()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error generating help page:", err)
+				os.Exit(1)
+			}
+			fmt.Fprint(os.Stdout, (helpPage))
+			usageShown = true
+		}
+	}
+	flag.Usage = func() {
+		printHelpPage()
+	}
 	flag.Parse()
-	if *show_version {
-		fmt.Fprintf(os.Stdout, "Version: %s (c)2009-2010 Geoffrey Clements All Rights Reserved\n\n", versionString)
-	}
-	if *show_help {
-		usage()
-		return
-	}
 
 	// the first parameter may be a script or an input file. This helps us track which
 	currentFileParameter := 0
@@ -301,8 +321,8 @@ func Main() {
 
 	// if script still isn't set we are screwed, exit.
 	if len(scriptBuffer) == 0 {
-		fmt.Fprint(os.Stderr, "No script found.\n\n")
-		usage()
+		printHelpPage()
+		fmt.Fprint(os.Stderr, "error, no input script found.\n")
 		os.Exit(-1)
 	}
 
@@ -321,8 +341,8 @@ func Main() {
 			// actually do the processing
 			s.inputFile, err = os.Open(inputFilename)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error openint input file: %s.\n\n", inputFilename)
-				usage()
+				printHelpPage()
+				fmt.Fprintf(os.Stderr, "error, could not open input file: %s.\n", inputFilename)
 				os.Exit(-1)
 			}
 			s.input = bufio.NewReader(s.inputFile)
@@ -353,14 +373,14 @@ func Main() {
 				// find out about
 				dir, err := os.Stat(inputFilename)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error getting information about input file: %s %v\n", err)
+					fmt.Fprintf(os.Stderr, "Error getting information about input file: %s %v\n", inputFilename, err)
 					// os.Remove(tempFilename);
 					os.Exit(-1)
 				}
 				// reopen input file
 				s.inputFile, err = os.OpenFile(inputFilename, os.O_WRONLY|os.O_TRUNC, dir.Mode())
 				if err != nil {
-					fmt.Fprint(os.Stderr, "Error opening input file for inplace editing: %s\n", err.Error())
+					fmt.Fprint(os.Stderr, "Error opening input file for inplace editing: %w\n", err.Error())
 					// os.Remove(tempFilename);
 					os.Exit(-1)
 				}

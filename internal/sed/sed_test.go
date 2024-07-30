@@ -238,7 +238,7 @@ func TestNewQCmd(t *testing.T) {
 	if err == nil {
 		t.Error("Didn't get an error we expected")
 	} else {
-		checkString(t, "Expected: strconv.ParseInt: parsing \"q\": invalid syntax", "strconv.ParseInt: parsing \"q\": invalid syntax", err.Error())
+		checkString(t, "Expected: strconv.Atoi: parsing \"q\": invalid syntax", "strconv.Atoi: parsing \"q\": invalid syntax", err.Error())
 	}
 
 	pieces = []byte{'q'}
@@ -308,7 +308,7 @@ func TestProcessLine(t *testing.T) {
 
 func checkInt(t *testing.T, val, expected int, actual string) {
 	if expected != val {
-		t.Errorf("%s: '%d' != '%d'", val, expected, actual)
+		t.Errorf("%d: '%d' != '%s'", val, expected, actual)
 	}
 }
 

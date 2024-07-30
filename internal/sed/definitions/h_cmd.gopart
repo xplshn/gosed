@@ -1,0 +1,53 @@
+// H_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)h%20Replace%20the%20contents%20of,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20of%20the%20pattern%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)h%20Replace%20the%20contents%20of,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20of%20the%20pattern%20space.
+type h_cmd struct {
+	addr    *address
+	replace bool
+}
+
+func (c *h_cmd) match(line []byte, lineNumber int) bool {
+	return c.addr.match(line, lineNumber)
+}
+
+func (c *h_cmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.replace {
+				return fmt.Sprintf("{h command with replace addr:%s}", c.addr.String())
+			} else {
+				return fmt.Sprintf("{h command Cmd addr:%s}", c.addr.String())
+			}
+		} else {
+			if c.replace {
+				return fmt.Sprint("{h command with replace }")
+			} else {
+				return fmt.Sprint("{h command")
+			}
+		}
+	}
+	return fmt.Sprint("{h command}")
+}
+
+func (c *h_cmd) processLine(s *Sed) (bool, error) {
+	if c.replace {
+		s.holdSpace = copyByteSlice(s.patternSpace)
+	} else {
+		buf := bytes.NewBuffer(s.patternSpace)
+		buf.WriteRune('\n')
+		buf.Write(s.holdSpace)
+		s.patternSpace = buf.Bytes()
+	}
+	return false, nil
+}
+
+func NewHCmd(pieces [][]byte, addr *address) (*h_cmd, error) {
+	if len(pieces) > 1 {
+		return nil, WrongNumberOfCommandParameters
+	}
+	cmd := new(h_cmd)
+	if pieces[0][0] == 'h' {
+		cmd.replace = true
+	}
+	cmd.addr = addr
+	return cmd, nil
+}
+// E-OF: H_CMD //

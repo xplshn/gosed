@@ -149,7 +149,7 @@ func checkForAddress(s []byte) ([]byte, *address, error) {
 		s = s[idx+1:]
 		addr := new(address)
 		addr.address_type = ADDRESS_REGEX
-		addr.regex, err = regexp.Compile(string(r))
+		addr.regex, err = regexp.CompilePOSIX(string(r))
 		if err != nil {
 			return s, nil, err
 		}

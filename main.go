@@ -25,6 +25,6 @@
 
 package main
 
-import "github.com/baldmountain/gosed/sed"
+import "github.com/xplshn/a-utils/cmd/sed/internal/sed"
 
 func main() { sed.Main() }
