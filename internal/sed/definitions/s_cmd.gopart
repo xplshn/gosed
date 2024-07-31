@@ -1,9 +1,7 @@
 // S_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)s/regular%2Dexpression/replacement/flags,regular%2Dexpression%20in%20the%20pattern%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)s/regular%2Dexpression/replacement/flags,regular%2Dexpression%20in%20the%20pattern%20space.
-const (
-	global_replace = -1
-)
 
-type s_cmd struct {
+// SCmd represents an 's' command in sed, which performs a substitution based on a regular expression in the pattern space.
+type SCmd struct {
 	addr         *address
 	regex        string
 	replace      []byte
@@ -11,92 +9,91 @@ type s_cmd struct {
 	re           *regexp.Regexp
 }
 
-func (c *s_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the SCmd.
+func (c *SCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *s_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			return fmt.Sprintf("{s command addr:%s regex:%v replace:%s nth occurance:%d}", c.addr, c.regex, c.replace, c.nthOccurance)
-		}
-		return fmt.Sprintf("{s command regex:%v replace:%s nth occurance:%d}", c.regex, c.replace, c.nthOccurance)
+// String returns a string representation of the SCmd, including its address, regex, replacement, and nth occurrence.
+func (c *SCmd) String() string {
+	if c.addr != nil {
+		return fmt.Sprintf("{s command addr:%s regex:%v replace:%s nth occurrence:%d}", c.addr, c.regex, c.replace, c.nthOccurance)
 	}
-	return "{s command}"
+	return fmt.Sprintf("{s command regex:%v replace:%s nth occurrence:%d}", c.regex, c.replace, c.nthOccurance)
 }
 
-func NewSCmd(pieces [][]byte, addr *address) (c *s_cmd, err error) {
+// NewSCmd creates a new SCmd instance from the given pieces of input and address.
+func NewSCmd(pieces [][]byte, addr *address) (*SCmd, error) {
 	if len(pieces) != 4 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
 
-	err = nil
-	c = new(s_cmd)
-	c.addr = addr
-
-	c.regex = string(pieces[1])
-	if len(c.regex) == 0 {
-		return nil, RegularExpressionExpected
+	cmd := &SCmd{
+		addr: addr,
+		regex: string(pieces[1]),
+		replace: pieces[2],
 	}
-	c.re, err = regexp.CompilePOSIX(string(c.regex))
+
+	if len(cmd.regex) == 0 {
+		return nil, ErrRegularExpressionExpected
+	}
+
+	var err error
+	cmd.re, err = regexp.CompilePOSIX(cmd.regex)
 	if err != nil {
 		return nil, err
 	}
 
-	c.replace = pieces[2]
-
 	flag := string(pieces[3])
-	if flag != "g" {
-		c.nthOccurance = 1
+	if flag == "g" {
+		cmd.nthOccurance = globalReplace
+	} else {
+		cmd.nthOccurance = 1
 		if len(flag) > 0 {
-			c.nthOccurance, err = strconv.Atoi(flag)
+			cmd.nthOccurance, err = strconv.Atoi(flag)
 			if err != nil {
-				return nil, InvalidSCommandFlag
+				return nil, ErrInvalidSCommandFlag
 			}
 		}
-	} else {
-		c.nthOccurance = global_replace
 	}
 
-	return c, err
+	return cmd, nil
 }
 
-func (c *s_cmd) processLine(s *Sed) (stop bool, err error) {
-	stop, err = false, nil
-
-	switch c.nthOccurance {
-	case global_replace:
+// processLine processes the input line for the SCmd, performing substitutions based on the regular expression.
+func (c *SCmd) processLine(s *Sed) (bool, error) {
+	if c.nthOccurance == globalReplace {
 		s.patternSpace = c.re.ReplaceAll(s.patternSpace, c.replace)
-	default:
-		// a numeric flag command
-		count := 0
-		line := s.patternSpace
-		s.patternSpace = make([]byte, 0)
-		for {
-			matches := c.re.FindIndex(line)
-			if len(matches) > 0 {
-				count++
-				if count == c.nthOccurance {
-					buf := bytes.NewBuffer(s.patternSpace)
-					buf.Write(line[0:matches[0]])
-					buf.Write(c.replace)
-					buf.Write(line[matches[1]:])
-					s.patternSpace = buf.Bytes()
-					break
-				} else {
-					buf := bytes.NewBuffer(s.patternSpace)
-					buf.Write(line[0 : matches[0]+1])
-					s.patternSpace = buf.Bytes()
-				}
-				line = line[matches[0]+1:]
-			} else {
+		return false, nil
+	}
+
+	count := 0
+	line := s.patternSpace
+	s.patternSpace = make([]byte, 0)
+	for {
+		matches := c.re.FindIndex(line)
+		if len(matches) > 0 {
+			count++
+			if count == c.nthOccurance {
 				buf := bytes.NewBuffer(s.patternSpace)
-				buf.Write(line)
+				buf.Write(line[:matches[0]])
+				buf.Write(c.replace)
+				buf.Write(line[matches[1]:])
 				s.patternSpace = buf.Bytes()
 				break
 			}
+			buf := bytes.NewBuffer(s.patternSpace)
+			buf.Write(line[:matches[0]+1])
+			s.patternSpace = buf.Bytes()
+			line = line[matches[0]+1:]
+			continue
 		}
+		buf := bytes.NewBuffer(s.patternSpace)
+		buf.Write(line)
+		s.patternSpace = buf.Bytes()
+		break
 	}
-	return stop, err
+	return false, nil
 }
+
 // E-OF: S_CMD //

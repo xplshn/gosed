@@ -1,28 +1,9 @@
+// sed.go
+// sed
 //
-//  sed.go
-//  sed
-//
-// Copyright (c) 2009 Geoffrey Clements
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-//
-
+// Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
+// Modified code: Copyright (c) 2024 xplshn (3BSD License)
+// For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
 package sed
 
 import (
@@ -32,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"unicode"
@@ -48,23 +28,19 @@ const (
 )
 
 var versionString string
+var quiet = flag.Bool("n", false, "Suppress automatic printing of pattern space.")
+var script = flag.String("e", "", "Expression to process input. Can be provided as a string.")
+var scriptFile = flag.String("f", "", "Read expression/script from a file. Ignored if -e is specified.")
+var editInplace = flag.Bool("i", false, "Edit files in place. If not set, output is printed to stdout.")
+var lineWrap = 0 // var lineWrap = flag.Uint("l", 0, "Specify the default line-wrap length for the l command. A length of 0 (zero) means to never wrap long lines. If not specified, it is taken to be 70.")
+var usageShown = false
+var newLine = []byte{'\n'}
 
 func init() {
 	versionString = fmt.Sprintf("%d.%d.%d", versionMajor, versionMinor, versionPoint)
 }
 
-var quiet = flag.Bool("n", false, "Don't print the pattern space at the end of each script cycle.")
-var script = flag.String("e", "", "The script used to process the input file.")
-var script_file = flag.String("f", "", "Specify a file to read as the script. Ignored if -e present")
-var edit_inplace = flag.Bool("i", false, "This option specifies that files are to be edited in-place. Otherwise output is printed to stdout.")
-var line_wrap = flag.Uint("l", 0, "Specify the default line-wrap length for the l command. A length of 0 (zero) means to never wrap long lines. If not specified, it is taken to be 70.")
-var unbuffered = flag.Bool("u", false, "Buffer both input and output as minimally as practical. (ignored)")
-var treat_files_as_seperate = flag.Bool("s", false, "Treat files as searate entites. Line numbers reset to 1 for each file")
-
-var usageShown bool = false
-
-var newLine = []byte{'\n'}
-
+// Sed holds the current file structure and operations
 type Sed struct {
 	inputFile               *os.File
 	input                   *bufio.Reader
@@ -79,6 +55,7 @@ type Sed struct {
 	scriptLineNumber        int
 }
 
+// Init initializes the Sed instance by setting up the command lists and output file.
 func (s *Sed) Init() {
 	s.beforeCommands = new(list.List)
 	s.commands = new(list.List)
@@ -93,17 +70,6 @@ func copyByteSlice(a []byte) []byte {
 	copy(newSlice, a)
 	return newSlice
 }
-
-/*
-func usage() {
-	// only show usage once.
-	if !usageShown {
-		usageShown = true
-		fmt.Fprint(os.Stdout, "sed [options] [script] input_file\n\n")
-		flag.PrintDefaults()
-	}
-}
-*/
 
 var inputFilename string
 
@@ -129,34 +95,46 @@ func trimSpaceFromBeginning(s []byte) []byte {
 }
 
 func (s *Sed) parseScript(scriptBuffer []byte) (err error) {
-	// a script may be a single command or it may be several
+	// Split the script buffer into lines
 	s.scriptLines = bytes.Split(scriptBuffer, newLine)
 	s.scriptLineNumber = 0
-	var line []byte
-	var serr error
-	for line, serr = s.getNextScriptLine(); serr == nil; line, serr = s.getNextScriptLine() {
-		// line = bytes.TrimSpace(line);
+
+	for {
+		line, err := s.getNextScriptLine()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		// Trim leading and trailing whitespace
 		line = trimSpaceFromBeginning(line)
 		if len(line) == 0 {
-			// zero length line
+			// Skip empty lines
 			continue
 		}
+
+		// Check if the line is a comment
 		if line[0] == '#' {
-			if s.scriptLineNumber == 1 && len(line) > 1 && line[1] == 'n' {
-				// spcial case where the first 2 characters of the file are #n which is
-				// equivalent to passing -n on the command line
+			// Special case for -n flag
+			if len(line) > 1 && line[1] == 'n' && s.scriptLineNumber == 1 {
 				*quiet = true
 			}
 			continue
 		}
+
+		// Process the command
 		c, err := NewCmd(s, line)
 		if err != nil {
 			fmt.Printf("Script error: %s -> %d: %s\n", err.Error(), s.scriptLineNumber, line)
 			os.Exit(-1)
 		}
-		if _, ok := c.(*i_cmd); ok {
+
+		// Add the command to the appropriate list
+		if _, ok := c.(*ICmd); ok {
 			s.beforeCommands.PushBack(c)
-		} else if _, ok := c.(*a_cmd); ok {
+		} else if _, ok := c.(*ACmd); ok {
 			s.afterCommands.PushBack(c)
 		} else {
 			s.commands.PushBack(c)
@@ -167,12 +145,12 @@ func (s *Sed) parseScript(scriptBuffer []byte) (err error) {
 
 func (s *Sed) printLine(line []byte) {
 	l := len(line)
-	if *line_wrap <= 0 || l < int(*line_wrap) {
+	if lineWrap <= 0 || l < int(lineWrap) {
 		fmt.Fprintf(s.outputFile, "%s\n", line)
 	} else {
 		// print the line in segments
-		for i := 0; i < l; i += int(*line_wrap) {
-			endOfLine := i + int(*line_wrap)
+		for i := 0; i < l; i += int(lineWrap) {
+			endOfLine := i + int(lineWrap)
 			if endOfLine > l {
 				endOfLine = l
 			}
@@ -189,7 +167,7 @@ func (s *Sed) printPatternSpace() {
 }
 
 func (s *Sed) process() {
-	if *treat_files_as_seperate || *edit_inplace {
+	if *editInplace {
 		s.lineNumber = 0
 	}
 	var err error
@@ -206,7 +184,7 @@ func (s *Sed) process() {
 		// process i commands
 		for c := s.beforeCommands.Front(); c != nil; c = c.Next() {
 			// ask the sed if we should process this command, based on address
-			if cmd, ok := c.Value.(*i_cmd); ok {
+			if cmd, ok := c.Value.(*ICmd); ok {
 				if c.Value.(Address).match(s.patternSpace, s.lineNumber) {
 					s.outputFile.Write(cmd.text)
 				}
@@ -234,7 +212,7 @@ func (s *Sed) process() {
 		// process a commands
 		for c := s.afterCommands.Front(); c != nil; c = c.Next() {
 			// ask the sed if we should process this command, based on address
-			if cmd, ok := c.Value.(*a_cmd); ok {
+			if cmd, ok := c.Value.(*ACmd); ok {
 				if c.Value.(Address).match(s.patternSpace, s.lineNumber) {
 					fmt.Fprintf(s.outputFile, "%s\n", cmd.text)
 				}
@@ -244,6 +222,7 @@ func (s *Sed) process() {
 	}
 }
 
+// Main is the entrypoint of this program. The ../../main.go calls `sed.Main()` to get here and get things done.
 func Main() {
 	var err error
 	s := new(Sed)
@@ -275,62 +254,48 @@ func Main() {
 	}
 	flag.Parse()
 
-	// the first parameter may be a script or an input file. This helps us track which
+	// The first parameter may be a script or an input file. This helps us track which
 	currentFileParameter := 0
-	var scriptBuffer []byte = make([]byte, 0)
+	var scriptBuffer []byte
 
-	// we need a script
+	// We need a script
 	if len(*script) == 0 {
-		// no -e so try -f
-		if len(*script_file) > 0 {
-			sb, err := ioutil.ReadFile(*script_file)
+		// No -e so try -f
+		if len(*scriptFile) > 0 {
+			sb, err := os.ReadFile(*scriptFile)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading script file %s\n", *script_file)
+				fmt.Fprintf(os.Stderr, "Error reading script file %s\n", *scriptFile)
 				os.Exit(-1)
 			}
 			scriptBuffer = sb
-		} else if flag.NArg() > 1 {
-			scriptBuffer := make([]byte, len(flag.Arg(0)))
-			for i := 0; i < len(flag.Arg(0)); i++ {
-				scriptBuffer[i] = flag.Arg(0)[i]
-			}
+		} else if flag.NArg() > 0 { // Changed from > 1 to > 0 to correctly handle the case with a single argument as script
+			script := flag.Arg(0)
+			scriptBuffer = []byte(script)
 
-			// change semicoluns to newlines for scripts on command line
-			idx := bytes.IndexByte(scriptBuffer, ';')
-			for idx >= 0 {
-				scriptBuffer[idx] = '\n'
-				s := scriptBuffer[idx+1:]
-				idx = bytes.IndexByte(s, ';')
-			}
-			// first parameter was the script so move to second parameter
+			// Change semicolons to newlines for scripts on command line
+			scriptBuffer = bytes.ReplaceAll(scriptBuffer, []byte(";"), []byte("\n"))
+
+			// First parameter was the script, so move to the second parameter
 			currentFileParameter++
 		}
 	} else {
-		scriptBuffer := make([]byte, len(*script))
-		for i := 0; i < len(*script); i++ {
-			scriptBuffer[i] = (*script)[i]
-		}
-		// change semicoluns to newlines for scripts on command line
-		idx := bytes.IndexByte(scriptBuffer, ';')
-		for idx >= 0 {
-			scriptBuffer[idx] = '\n'
-			s := scriptBuffer[idx+1:]
-			idx = bytes.IndexByte(s, ';')
-		}
+		scriptBuffer = []byte(*script)
+		// Change semicolons to newlines for scripts on command line
+		scriptBuffer = bytes.ReplaceAll(scriptBuffer, []byte(";"), []byte("\n"))
 	}
 
-	// if script still isn't set we are screwed, exit.
+	// If script still isn't set, we are screwed, exit.
 	if len(scriptBuffer) == 0 {
 		printHelpPage()
 		fmt.Fprint(os.Stderr, "error, no input script found.\n")
 		os.Exit(-1)
 	}
 
-	// parse script
+	// Parse script
 	s.parseScript(scriptBuffer)
 
 	if currentFileParameter >= flag.NArg() {
-		if *edit_inplace {
+		if *editInplace {
 			fmt.Fprintf(os.Stderr, "Warning: Option -i ignored\n")
 		}
 		s.input = bufio.NewReader(os.Stdin)
@@ -347,7 +312,7 @@ func Main() {
 			}
 			s.input = bufio.NewReader(s.inputFile)
 			var tempFilename string
-			if *edit_inplace {
+			if *editInplace {
 				tempFilename = inputFilename + ".tmp"
 				tmpc := 0
 				dir, _ := os.Stat(tempFilename)
@@ -368,7 +333,7 @@ func Main() {
 			// done processing, close input file
 			s.inputFile.Close()
 			s.input = nil
-			if *edit_inplace {
+			if *editInplace {
 				s.outputFile.Seek(0, 0)
 				// find out about
 				dir, err := os.Stat(inputFilename)

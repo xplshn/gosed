@@ -1,26 +1,42 @@
+// ./definitions/*
+// sed
+//
+// Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
+// Modified code: Copyright (c) 2024 xplshn (3BSD License)
+// For details, see LICENSE file in the root directory of this project.
+
+// In order to generate commands.go, you must do `cat ./definitions/*.gopart > ./commands.go`
+// This is why a_cmd.gopart is the only file that includes the License header
+
 // A_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line.
-// What you gotta do with us (.gopart files) is: `cat ./definitions/*.gopart > ./commands.go`, that way you can compile `sed`.
 package sed
 
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
-	"io"
 )
 
-type a_cmd struct {
+// Used in other parts of the `sed` package.
+const (
+	globalReplace = -1
+)
+
+
+// ACmd represents an 'a' command in sed.
+type ACmd struct {
 	addr *address
 	text []byte
 }
 
-func (c *a_cmd) match(line []byte, lineNumber int) bool {
+func (c *ACmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *a_cmd) String() string {
+func (c *ACmd) String() string {
 	if c != nil {
 		if c.addr != nil {
 			return fmt.Sprintf("{a command addr:%s text:%s}", c.addr.String(), c.text)
@@ -30,12 +46,13 @@ func (c *a_cmd) String() string {
 	return fmt.Sprintf("{a command}")
 }
 
-func (c *a_cmd) processLine(s *Sed) (bool, error) {
+func (c *ACmd) processLine(_ *Sed) (bool, error) {
 	return false, nil
 }
 
-func NewACmd(s *Sed, line []byte, addr *address) (*a_cmd, error) {
-	cmd := new(a_cmd)
+// NewACmd creates a new aCmd instance from the given Sed object, line, and address.
+func NewACmd(s *Sed, line []byte, addr *address) (*ACmd, error) {
+	cmd := new(ACmd)
 	cmd.addr = addr
 	cmd.text = line[1:]
 	for bytes.HasSuffix(cmd.text, []byte{'\\'}) {
@@ -52,18 +69,23 @@ func NewACmd(s *Sed, line []byte, addr *address) (*a_cmd, error) {
 	cmd.text = trimSpaceFromBeginning(cmd.text)
 	return cmd, nil
 }
+
 // E-OF: A_CMD //
 // B_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)b%20label,the%20end%20of%20the%20script. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)b%20label,the%20end%20of%20the%20script.
-type b_cmd struct {
+
+// BCmd represents a 'b' command in sed, which branches to a specified label
+type BCmd struct {
 	addr  *address
 	label string
 }
 
-func (c *b_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the bCmd.
+func (c *BCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *b_cmd) String() string {
+// String returns a string representation of the BCmd, including its label and address
+func (c *BCmd) String() string {
 	if c != nil {
 		if c.addr != nil {
 			return fmt.Sprintf("{b command label: %s Cmd addr:%s}", c.label, c.addr.String())
@@ -73,59 +95,67 @@ func (c *b_cmd) String() string {
 	return fmt.Sprintf("{b command}")
 }
 
-func (c *b_cmd) processLine(s *Sed) (bool, error) {
-	return true, NotImplemented
+// processLine processes the input line for the BCmd. It returns an error indicating the function is not implemented.
+func (c *BCmd) processLine(_ *Sed) (bool, error) {
+	return true, ErrNotImplemented
 }
-
-func NewBCmd(pieces [][]byte, addr *address) (*b_cmd, error) {
+// NewBCmd creates a new BCmd instance from the given pieces of input and address
+func NewBCmd(pieces [][]byte, addr *address) (*BCmd, error) {
 	if len(pieces) != 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(b_cmd)
+	cmd := new(BCmd)
 	cmd.addr = addr
 	cmd.label = string(bytes.TrimSpace(pieces[0][1:]))
 	return cmd, nil
 }
+
 // E-OF: B_CMD //
 // C_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)c%5C,output.%20%20Start%20the%20next%20cycle. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)c%5C,output.%20%20Start%20the%20next%20cycle.
-type c_cmd struct {
+
+// CCmd represents a 'c' command in sed, which replaces lines that match the address with specified text.
+type CCmd struct {
 	addr *address
 	text []byte
 }
 
-func (c *c_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the CCmd.
+func (c *CCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *c_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			return fmt.Sprintf("{c command addr:%s text:%s}", c.addr.String(), c.text)
-		}
-		return fmt.Sprintf("{c command text:%s}", c.text)
-	}
-	return fmt.Sprintf("{c command}")
-}
-
-func (c *c_cmd) printText(s *Sed) {
-	// we are going to get the newline from the
-	s.outputFile.Write(c.text)
-}
-
-func (c *c_cmd) processLine(s *Sed) (bool, error) {
-	s.patternSpace = s.patternSpace[0:0]
+// String returns a string representation of the CCmd, including its address and text.
+func (c *CCmd) String() string {
 	if c.addr != nil {
-		switch c.addr.address_type {
-		case ADDRESS_RANGE:
+		return fmt.Sprintf("{c command addr:%s text:%s}", c.addr.String(), string(c.text))
+	}
+	return fmt.Sprintf("{c command text:%s}", string(c.text))
+}
+
+// printText writes the command's text to the output file.
+func (c *CCmd) printText(s *Sed) {
+	_, err := s.outputFile.Write(c.text)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing text: %v\n", err)
+	}
+}
+
+// processLine processes the input line for the CCmd, replacing the content based on the address.
+func (c *CCmd) processLine(s *Sed) (bool, error) {
+	s.patternSpace = s.patternSpace[:0]
+	if c.addr != nil {
+		switch c.addr.addressType {
+		case addressRange:
 			if s.lineNumber+1 == c.addr.rangeEnd {
 				c.printText(s)
 				return true, nil
 			}
-		case ADDRESS_LINE, ADDRESS_REGEX, ADDRESS_LAST_LINE:
+		case addressLine, addressRegEx, addressLastLine:
 			c.printText(s)
 			return true, nil
-		case ADDRESS_TO_END_OF_FILE:
-			// FIX need to output at end of file
+		case addressToEndOfFile:
+			// Output at end of file is not handled here
+			fmt.Fprintln(os.Stderr, "TODO: Handle output at end of file")
 		}
 	} else {
 		c.printText(s)
@@ -134,177 +164,208 @@ func (c *c_cmd) processLine(s *Sed) (bool, error) {
 	return false, nil
 }
 
-func NewCCmd(s *Sed, line []byte, addr *address) (*c_cmd, error) {
-	cmd := new(c_cmd)
-	cmd.addr = addr
-	cmd.text = line[1:]
+// NewCCmd creates a new CCmd instance from the given Sed object, line of input, and address.
+func NewCCmd(s *Sed, line []byte, addr *address) (*CCmd, error) {
+	cmd := &CCmd{
+		addr: addr,
+		text: line[1:],
+	}
 	for bytes.HasSuffix(cmd.text, []byte{'\\'}) {
-		cmd.text = cmd.text[0 : len(cmd.text)-1]
-		line, err := s.getNextScriptLine()
+		cmd.text = cmd.text[:len(cmd.text)-1]
+		nextLine, err := s.getNextScriptLine()
 		if err != nil {
-			break
+			return nil, err
 		}
 		buf := bytes.NewBuffer(cmd.text)
 		buf.WriteRune('\n')
-		buf.Write(line)
+		buf.Write(nextLine)
 		cmd.text = buf.Bytes()
 	}
 	return cmd, nil
 }
+
 // E-OF: C_CMD //
 // D_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)d%20Delete%20the%20pattern%20space.,newline.%20%20Start%20the%20next%20cycle. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)d%20Delete%20the%20pattern%20space.,newline.%20%20Start%20the%20next%20cycle.
-type d_cmd struct {
+
+// DCmd represents a 'd' command in sed, which deletes the pattern space up to the first newline or entirely.
+type DCmd struct {
 	addr             *address
 	upToFirstNewLine bool
 }
 
-func (c *d_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the DCmd.
+func (c *DCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *d_cmd) String() string {
-	if c != nil && c.addr != nil {
+// String returns a string representation of the DCmd, including its address and whether it deletes up to the first newline.
+func (c *DCmd) String() string {
+	if c.addr != nil {
+		if c.upToFirstNewLine {
+			return fmt.Sprintf("{d command addr:%s up to first newline}", c.addr.String())
+		}
 		return fmt.Sprintf("{d command addr:%s}", c.addr.String())
 	}
-	return fmt.Sprintf("{d command}")
+	if c.upToFirstNewLine {
+		return "{d command up to first newline}"
+	}
+	return "{d command}"
 }
 
-func (c *d_cmd) processLine(s *Sed) (bool, error) {
+// processLine processes the input line for the DCmd, deleting the pattern space up to the first newline if specified.
+func (c *DCmd) processLine(s *Sed) (bool, error) {
 	if c.upToFirstNewLine {
 		idx := bytes.IndexByte(s.patternSpace, '\n')
 		if idx >= 0 && idx+1 < len(s.patternSpace) {
 			s.patternSpace = s.patternSpace[idx+1:]
-			return false, nil
+		} else {
+			s.patternSpace = s.patternSpace[:0] // Clear pattern space if newline is not found
 		}
 	}
 	return true, nil
 }
 
-func NewDCmd(pieces [][]byte, addr *address) (*d_cmd, error) {
+// NewDCmd creates a new DCmd instance from the given pieces of input and address.
+func NewDCmd(pieces [][]byte, addr *address) (*DCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(d_cmd)
-	if pieces[0][0] == 'D' {
+	cmd := &DCmd{
+		addr: addr,
+	}
+	if len(pieces) > 0 && pieces[0][0] == 'D' {
 		cmd.upToFirstNewLine = true
 	}
-	cmd.addr = addr
 	return cmd, nil
 }
-// E-OF: D_CMD //
+
+// E-OF: dCmd //
 // EQL_CMD //
-type eql_cmd struct {
+
+// EqlCmd represents an '=' command in sed, which prints the current line number.
+type EqlCmd struct {
 	addr *address
 }
 
-func (c *eql_cmd) match(line []byte, lineNumber int) bool {
-	return c.addr.match(line, lineNumber)
+// match checks if the given line matches the address criteria of the EqlCmd.
+func (c *EqlCmd) match(line []byte, lineNumber int) bool {
+    return c.addr.match(line, lineNumber)
 }
 
-func (c *eql_cmd) String() string {
-	if c != nil && c.addr != nil {
-		return fmt.Sprintf("{= command addr: %s}", c.addr.String())
-	}
-	return fmt.Sprint("{= command}")
+// String returns a string representation of the EqlCmd, including its address.
+func (c *EqlCmd) String() string {
+    if c != nil && c.addr != nil {
+        return fmt.Sprintf("{= command addr: %s}", c.addr.String())
+    }
+    return fmt.Sprint("{= command}")
 }
 
-func (c *eql_cmd) processLine(s *Sed) (bool, error) {
-	fmt.Fprintf(os.Stdout, "\n%d\n", s.lineNumber)
-	return false, nil
+// processLine processes the input line for the EqlCmd, printing the current line number.
+func (c *EqlCmd) processLine(s *Sed) (bool, error) {
+    fmt.Fprintf(os.Stdout, "\n%d\n", s.lineNumber)
+    return false, nil
 }
 
-func NewEqlCmd(pieces [][]byte, addr *address) (*eql_cmd, error) {
-	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
-	}
-	cmd := new(eql_cmd)
-	cmd.addr = addr
-	return cmd, nil
+// NewEqlCmd creates a new EqlCmd instance from the given pieces of input and address.
+func NewEqlCmd(pieces [][]byte, addr *address) (*EqlCmd, error) {
+    if len(pieces) > 1 {
+        return nil, ErrWrongNumberOfCommandParameters
+    }
+    cmd := new(EqlCmd)
+    cmd.addr = addr
+    return cmd, nil
 }
+
 // E-OF: EQL_CMD //
 // G_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space.
-type g_cmd struct {
+
+// GCmd represents a 'g' command in sed, which replaces or appends the contents of the hold space to the pattern space.
+type GCmd struct {
 	addr    *address
 	replace bool
 }
 
-func (c *g_cmd) match(line []byte, lineNumber int) bool {
-	return c.addr.match(line, lineNumber)
+// match checks if the given line matches the address criteria of the GCmd.
+func (c *GCmd) match(line []byte, lineNumber int) bool {
+    return c.addr.match(line, lineNumber)
 }
 
-func (c *g_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			if c.replace {
-				return fmt.Sprintf("{g command with replace addr:%s}", c.addr.String())
-			} else {
-				return fmt.Sprintf("{g command addr:%s}", c.addr.String())
-			}
-		} else {
-			if c.replace {
-				return fmt.Sprint("{g command with replace}")
-			} else {
-				return fmt.Sprint("{Append a newline and the hold space to the pattern space}")
-			}
-		}
-	}
-	return fmt.Sprint("{Append/Replace pattern space with contents of hold space}")
+// String returns a string representation of the GCmd, including its address and replace status.
+func (c *GCmd) String() string {
+    if c != nil {
+        if c.addr != nil {
+            if c.replace {
+                return fmt.Sprintf("{g command with replace addr:%s}", c.addr.String())
+            }
+            return fmt.Sprintf("{g command addr:%s}", c.addr.String())
+        }
+        if c.replace {
+            return fmt.Sprint("{g command with replace}")
+        }
+        return fmt.Sprint("{Append a newline and the hold space to the pattern space}")
+    }
+    return fmt.Sprint("{Append/Replace pattern space with contents of hold space}")
 }
 
-func (c *g_cmd) processLine(s *Sed) (bool, error) {
-	if c.replace {
-		s.patternSpace = copyByteSlice(s.holdSpace)
-	} else {
-		buf := bytes.NewBuffer(s.patternSpace)
-		buf.WriteRune('\n')
-		buf.Write(s.holdSpace)
-		s.patternSpace = buf.Bytes()
-	}
-	return false, nil
+// processLine processes the input line for the GCmd, replacing or appending the hold space as specified.
+func (c *GCmd) processLine(s *Sed) (bool, error) {
+    if c.replace {
+        s.patternSpace = copyByteSlice(s.holdSpace)
+    } else {
+        buf := bytes.NewBuffer(s.patternSpace)
+        buf.WriteRune('\n')
+        buf.Write(s.holdSpace)
+        s.patternSpace = buf.Bytes()
+    }
+    return false, nil
 }
 
-func NewGCmd(pieces [][]byte, addr *address) (*g_cmd, error) {
-	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
-	}
-	cmd := new(g_cmd)
-	if pieces[0][0] == 'g' {
-		cmd.replace = true
-	}
-	cmd.addr = addr
-	return cmd, nil
+// NewGCmd creates a new GCmd instance from the given pieces of input and address.
+func NewGCmd(pieces [][]byte, addr *address) (*GCmd, error) {
+    if len(pieces) > 1 {
+        return nil, ErrWrongNumberOfCommandParameters
+    }
+    cmd := new(GCmd)
+    if pieces[0][0] == 'g' {
+        cmd.replace = true
+    }
+    cmd.addr = addr
+    return cmd, nil
 }
+
 // E-OF: G_CMD //
 // H_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)h%20Replace%20the%20contents%20of,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20of%20the%20pattern%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)h%20Replace%20the%20contents%20of,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20of%20the%20pattern%20space.
-type h_cmd struct {
+
+// HCmd represents an 'h' command in sed, which replaces or appends the contents of the pattern space to the hold space.
+type HCmd struct {
 	addr    *address
 	replace bool
 }
 
-func (c *h_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the HCmd.
+func (c *HCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *h_cmd) String() string {
+// String returns a string representation of the HCmd, including its address and replace status.
+func (c *HCmd) String() string {
 	if c != nil {
 		if c.addr != nil {
 			if c.replace {
 				return fmt.Sprintf("{h command with replace addr:%s}", c.addr.String())
-			} else {
-				return fmt.Sprintf("{h command Cmd addr:%s}", c.addr.String())
 			}
-		} else {
-			if c.replace {
-				return fmt.Sprint("{h command with replace }")
-			} else {
-				return fmt.Sprint("{h command")
-			}
+			return fmt.Sprintf("{h command Cmd addr:%s}", c.addr.String())
 		}
+		if c.replace {
+			return fmt.Sprint("{h command with replace }")
+		}
+		return fmt.Sprint("{h command")
 	}
 	return fmt.Sprint("{h command}")
 }
 
-func (c *h_cmd) processLine(s *Sed) (bool, error) {
+// processLine processes the input line for the HCmd, replacing or appending the pattern space as specified.
+func (c *HCmd) processLine(s *Sed) (bool, error) {
 	if c.replace {
 		s.holdSpace = copyByteSlice(s.patternSpace)
 	} else {
@@ -316,29 +377,35 @@ func (c *h_cmd) processLine(s *Sed) (bool, error) {
 	return false, nil
 }
 
-func NewHCmd(pieces [][]byte, addr *address) (*h_cmd, error) {
+// NewHCmd creates a new HCmd instance from the given pieces of input and address.
+func NewHCmd(pieces [][]byte, addr *address) (*HCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(h_cmd)
+	cmd := new(HCmd)
 	if pieces[0][0] == 'h' {
 		cmd.replace = true
 	}
 	cmd.addr = addr
 	return cmd, nil
 }
+
 // E-OF: H_CMD //
 // I_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)i%5C,the%20standard%20output. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)i%5C,the%20standard%20output.
-type i_cmd struct {
+
+// ICmd represents an 'i' command in sed, which inserts text before the current pattern space and outputs it to the standard output.
+type ICmd struct {
 	addr *address
 	text []byte
 }
 
-func (c *i_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the ICmd.
+func (c *ICmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *i_cmd) String() string {
+// String returns a string representation of the ICmd, including its address and text.
+func (c *ICmd) String() string {
 	if c != nil {
 		if c.addr != nil {
 			return fmt.Sprintf("{i command addr:%s text:%s}", c.addr.String(), string(c.text))
@@ -348,12 +415,14 @@ func (c *i_cmd) String() string {
 	return fmt.Sprintf("{i command}")
 }
 
-func (c *i_cmd) processLine(s *Sed) (bool, error) {
+// processLine processes the input line for the ICmd. It does not alter the pattern space.
+func (c *ICmd) processLine(_ *Sed) (bool, error) {
 	return false, nil
 }
 
-func NewICmd(s *Sed, line []byte, addr *address) (*i_cmd, error) {
-	cmd := new(i_cmd)
+// NewICmd creates a new ICmd instance from the given line of input and address.
+func NewICmd(s *Sed, line []byte, addr *address) (*ICmd, error) {
+	cmd := new(ICmd)
 	cmd.addr = addr
 	cmd.text = line[1:]
 	for bytes.HasSuffix(cmd.text, []byte{'\\'}) {
@@ -362,35 +431,46 @@ func NewICmd(s *Sed, line []byte, addr *address) (*i_cmd, error) {
 		if err != nil {
 			break
 		}
-		// cmd.text = bytes.AddByte(cmd.text, '\n')
 		buf := bytes.NewBuffer(cmd.text)
 		buf.Write(line)
 		s.patternSpace = buf.Bytes()
 	}
 	return cmd, nil
 }
+
 // E-OF: I_CMD //
 // N_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.) // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.)
-type n_cmd struct {
+
+// NCmd represents an 'n' command in sed, which either prints the pattern space and replaces it with the next line ('n') or appends the next line of input to the pattern space ('N').
+type NCmd struct {
 	addr   *address
 	append bool // Distinguishes between 'n' (false) and 'N' (true)
 }
 
-func (c *n_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the NCmd.
+func (c *NCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *n_cmd) String() string {
-	if c != nil && c.addr != nil {
-		if c.append {
-			return fmt.Sprintf("{N command addr:%s}", c.addr.String())
+// String returns a string representation of the NCmd, including its address and whether it appends or replaces.
+func (c *NCmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.append {
+				return fmt.Sprintf("{N command addr:%s}", c.addr.String())
+			}
+			return fmt.Sprintf("{n command addr:%s}", c.addr.String())
 		}
-		return fmt.Sprintf("{n command addr:%s}", c.addr.String())
+		if c.append {
+			return fmt.Sprint("{N command}")
+		}
+		return fmt.Sprint("{n command}")
 	}
 	return fmt.Sprint("{n/N command}")
 }
 
-func (c *n_cmd) processLine(s *Sed) (bool, error) {
+// processLine processes the input line for the NCmd. It either prints the pattern space and replaces it with the next line or appends the next line to the pattern space.
+func (c *NCmd) processLine(s *Sed) (bool, error) {
 	if c.append {
 		// N: Append the next line of input to the pattern space
 		nextLine, err := s.input.ReadBytes('\n')
@@ -400,7 +480,7 @@ func (c *n_cmd) processLine(s *Sed) (bool, error) {
 			}
 			return false, err
 		}
-		s.patternSpace = append(s.patternSpace, newLine...)
+		s.patternSpace = append(s.patternSpace, '\n')
 		s.patternSpace = append(s.patternSpace, nextLine...)
 	} else {
 		// n: Print and replace pattern space with the next line
@@ -419,144 +499,179 @@ func (c *n_cmd) processLine(s *Sed) (bool, error) {
 	return true, nil
 }
 
-func NewNCmd(pieces [][]byte, addr *address) (*n_cmd, error) {
+// NewNCmd creates a new NCmd instance from the given pieces and address.
+func NewNCmd(pieces [][]byte, addr *address) (*NCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := &n_cmd{
+	cmd := &NCmd{
 		addr:   addr,
 		append: pieces[0][0] == 'N',
 	}
 	return cmd, nil
 }
+
 // E-OF: N_CMD //
 // P_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)p%20Print.%20%20Copy%20the%20pattern,newline%20to%20the%20standard%20output. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)p%20Print.%20%20Copy%20the%20pattern,newline%20to%20the%20standard%20output.
-type p_cmd struct {
+
+// PCmd represents a 'p' command in sed, which prints the pattern space. It can be configured to print up to the first newline or the entire pattern space.
+type PCmd struct {
 	addr        *address
-	upToNewLine bool
+	upToNewLine bool // If true, prints only up to the first newline; otherwise, prints the entire pattern space
 }
 
-func (c *p_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the PCmd.
+func (c *PCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *p_cmd) String() string {
-	if c != nil && c.addr != nil {
-		return fmt.Sprintf("{p command addr:%s}", c.addr.String())
+// String returns a string representation of the PCmd, including its address and whether it prints up to a newline.
+func (c *PCmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.upToNewLine {
+				return fmt.Sprintf("{p command addr:%s up to newline}", c.addr.String())
+			}
+			return fmt.Sprintf("{p command addr:%s}", c.addr.String())
+		}
+		if c.upToNewLine {
+			return fmt.Sprint("{p command up to newline}")
+		}
+		return fmt.Sprint("{p command}")
 	}
 	return fmt.Sprint("{p command}")
 }
 
-func (c *p_cmd) processLine(s *Sed) (bool, error) {
-	// print output space
+// processLine processes the pattern space for the PCmd. It either prints up to the first newline or the entire pattern space.
+func (c *PCmd) processLine(s *Sed) (bool, error) {
 	if c.upToNewLine {
-		firstLine := bytes.SplitN(s.patternSpace, []byte{'\n'}, 1)[0]
+		// Print only up to the first newline
+		firstLine := bytes.SplitN(s.patternSpace, []byte{'\n'}, 2)[0]
 		fmt.Fprintln(s.outputFile, string(firstLine))
 	} else {
+		// Print the entire pattern space
 		fmt.Fprintln(s.outputFile, string(s.patternSpace))
 	}
 	return false, nil
 }
 
-func NewPCmd(pieces [][]byte, addr *address) (*p_cmd, error) {
+// NewPCmd creates a new PCmd instance from the given pieces and address.
+func NewPCmd(pieces [][]byte, addr *address) (*PCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(p_cmd)
-	cmd.addr = addr
-	cmd.upToNewLine = pieces[0][0] == 'P'
+	cmd := &PCmd{
+		addr:        addr,
+		upToNewLine: pieces[0][0] == 'P',
+	}
 	return cmd, nil
 }
+
 // E-OF: P_CMD //
 // Q_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)q%20Quit.%20%20Branch%20to%20the,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20new%20cycle. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)q%20Quit.%20%20Branch%20to%20the,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20new%20cycle.
-type q_cmd struct {
-	addr      *address
-	exit_code int
+
+// QCmd represents a 'q' command in sed, which terminates the sed process with a specified exit code.
+type QCmd struct {
+	addr     *address
+	exitCode int // The exit code to return when the 'q' command is executed
 }
 
-func (c *q_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the QCmd.
+func (c *QCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *q_cmd) String() string {
+// String returns a string representation of the QCmd, including its address and exit code.
+func (c *QCmd) String() string {
 	if c != nil {
 		if c.addr != nil {
-			return fmt.Sprintf("{q command addr:%s with exit code: %d}", c.addr.String(), c.exit_code)
+			return fmt.Sprintf("{q command addr:%s with exit code: %d}", c.addr.String(), c.exitCode)
 		}
-		return fmt.Sprintf("{q command with exit code: %d}", c.exit_code)
+		return fmt.Sprintf("{q command with exit code: %d}", c.exitCode)
 	}
 	return fmt.Sprint("{q command}")
 }
 
-func NewQCmd(pieces [][]byte, addr *address) (c *q_cmd, err error) {
-	err = nil
-	c = nil
+// NewQCmd creates a new QCmd instance from the given pieces and address.
+// It parses the exit code if provided, or defaults to 0.
+func NewQCmd(pieces [][]byte, addr *address) (*QCmd, error) {
+	var err error
+	cmd := &QCmd{
+		addr: addr,
+	}
 	switch len(pieces) {
 	case 2:
-		c = new(q_cmd)
-		c.addr = addr
-		c.exit_code, err = strconv.Atoi(string(pieces[1]))
+		cmd.exitCode, err = strconv.Atoi(string(pieces[1]))
 		if err != nil {
-			c = nil
+			return nil, err
 		}
 	case 1:
-		c = new(q_cmd)
-		c.addr = addr
-		c.exit_code = 0
+		cmd.exitCode = 0
 	default:
-		c, err = nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	return c, err
+	return cmd, nil
 }
 
-func (c *q_cmd) processLine(s *Sed) (stop bool, err error) {
-	os.Exit(c.exit_code)
+// processLine terminates the sed process with the exit code specified in the QCmd.
+func (c *QCmd) processLine(_ *Sed) (bool, error) {
+	os.Exit(c.exitCode)
 	return false, nil
 }
+
 // E-OF: Q_CMD //
 // R_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)r%20rfile,reading%20the%20next%20input%20line. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)r%20rfile,reading%20the%20next%20input%20line.
-type r_cmd struct {
+
+// RCmd represents an 'r' command in sed, which reads a file and appends its contents to the pattern space.
+type RCmd struct {
 	addr *address
-	text []byte
+	text []byte // Text to be written to the output file
 }
 
-func (c *r_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the RCmd.
+func (c *RCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *r_cmd) String() string {
-	if c != nil && c.addr != nil {
+// String returns a string representation of the RCmd, including its address and the text.
+func (c *RCmd) String() string {
+	if c.addr != nil {
 		return fmt.Sprintf("{r command addr:%s}", c.addr.String())
 	}
 	return fmt.Sprint("{r command}")
 }
 
-func (c *r_cmd) processLine(s *Sed) (bool, error) {
-	// print output space
+// processLine writes the stored text to the output file if it exists.
+func (c *RCmd) processLine(s *Sed) (bool, error) {
 	if c.text != nil {
-		s.outputFile.Write(c.text)
+		_, err := s.outputFile.Write(c.text)
+		if err != nil {
+			return false, err
+		}
 	}
 	return false, nil
 }
 
-func NewRCmd(line []byte, addr *address) (*r_cmd, error) {
-	line = line[1:]
-	cmd := new(r_cmd)
-	cmd.addr = addr
-	if len(line) > 0 {
-		cmd.text = line
+// NewRCmd creates a new RCmd instance from the given line and address.
+// It initializes the command with the text specified after the 'r' command, if provided.
+func NewRCmd(line []byte, addr *address) (*RCmd, error) {
+	if len(line) > 1 {
+		line = line[1:] // Remove the initial 'r' character
 	} else {
-		cmd.text = nil
+		line = nil
+	}
+	cmd := &RCmd{
+		addr: addr,
+		text: line,
 	}
 	return cmd, nil
 }
+
 // E-OF: R_CMD //
 // S_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)s/regular%2Dexpression/replacement/flags,regular%2Dexpression%20in%20the%20pattern%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)s/regular%2Dexpression/replacement/flags,regular%2Dexpression%20in%20the%20pattern%20space.
-const (
-	global_replace = -1
-)
 
-type s_cmd struct {
+// SCmd represents an 's' command in sed, which performs a substitution based on a regular expression in the pattern space.
+type SCmd struct {
 	addr         *address
 	regex        string
 	replace      []byte
@@ -564,92 +679,91 @@ type s_cmd struct {
 	re           *regexp.Regexp
 }
 
-func (c *s_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the SCmd.
+func (c *SCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *s_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			return fmt.Sprintf("{s command addr:%s regex:%v replace:%s nth occurance:%d}", c.addr, c.regex, c.replace, c.nthOccurance)
-		}
-		return fmt.Sprintf("{s command regex:%v replace:%s nth occurance:%d}", c.regex, c.replace, c.nthOccurance)
+// String returns a string representation of the SCmd, including its address, regex, replacement, and nth occurrence.
+func (c *SCmd) String() string {
+	if c.addr != nil {
+		return fmt.Sprintf("{s command addr:%s regex:%v replace:%s nth occurrence:%d}", c.addr, c.regex, c.replace, c.nthOccurance)
 	}
-	return "{s command}"
+	return fmt.Sprintf("{s command regex:%v replace:%s nth occurrence:%d}", c.regex, c.replace, c.nthOccurance)
 }
 
-func NewSCmd(pieces [][]byte, addr *address) (c *s_cmd, err error) {
+// NewSCmd creates a new SCmd instance from the given pieces of input and address.
+func NewSCmd(pieces [][]byte, addr *address) (*SCmd, error) {
 	if len(pieces) != 4 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
 
-	err = nil
-	c = new(s_cmd)
-	c.addr = addr
-
-	c.regex = string(pieces[1])
-	if len(c.regex) == 0 {
-		return nil, RegularExpressionExpected
+	cmd := &SCmd{
+		addr: addr,
+		regex: string(pieces[1]),
+		replace: pieces[2],
 	}
-	c.re, err = regexp.CompilePOSIX(string(c.regex))
+
+	if len(cmd.regex) == 0 {
+		return nil, ErrRegularExpressionExpected
+	}
+
+	var err error
+	cmd.re, err = regexp.CompilePOSIX(cmd.regex)
 	if err != nil {
 		return nil, err
 	}
 
-	c.replace = pieces[2]
-
 	flag := string(pieces[3])
-	if flag != "g" {
-		c.nthOccurance = 1
+	if flag == "g" {
+		cmd.nthOccurance = globalReplace
+	} else {
+		cmd.nthOccurance = 1
 		if len(flag) > 0 {
-			c.nthOccurance, err = strconv.Atoi(flag)
+			cmd.nthOccurance, err = strconv.Atoi(flag)
 			if err != nil {
-				return nil, InvalidSCommandFlag
+				return nil, ErrInvalidSCommandFlag
 			}
 		}
-	} else {
-		c.nthOccurance = global_replace
 	}
 
-	return c, err
+	return cmd, nil
 }
 
-func (c *s_cmd) processLine(s *Sed) (stop bool, err error) {
-	stop, err = false, nil
-
-	switch c.nthOccurance {
-	case global_replace:
+// processLine processes the input line for the SCmd, performing substitutions based on the regular expression.
+func (c *SCmd) processLine(s *Sed) (bool, error) {
+	if c.nthOccurance == globalReplace {
 		s.patternSpace = c.re.ReplaceAll(s.patternSpace, c.replace)
-	default:
-		// a numeric flag command
-		count := 0
-		line := s.patternSpace
-		s.patternSpace = make([]byte, 0)
-		for {
-			matches := c.re.FindIndex(line)
-			if len(matches) > 0 {
-				count++
-				if count == c.nthOccurance {
-					buf := bytes.NewBuffer(s.patternSpace)
-					buf.Write(line[0:matches[0]])
-					buf.Write(c.replace)
-					buf.Write(line[matches[1]:])
-					s.patternSpace = buf.Bytes()
-					break
-				} else {
-					buf := bytes.NewBuffer(s.patternSpace)
-					buf.Write(line[0 : matches[0]+1])
-					s.patternSpace = buf.Bytes()
-				}
-				line = line[matches[0]+1:]
-			} else {
+		return false, nil
+	}
+
+	count := 0
+	line := s.patternSpace
+	s.patternSpace = make([]byte, 0)
+	for {
+		matches := c.re.FindIndex(line)
+		if len(matches) > 0 {
+			count++
+			if count == c.nthOccurance {
 				buf := bytes.NewBuffer(s.patternSpace)
-				buf.Write(line)
+				buf.Write(line[:matches[0]])
+				buf.Write(c.replace)
+				buf.Write(line[matches[1]:])
 				s.patternSpace = buf.Bytes()
 				break
 			}
+			buf := bytes.NewBuffer(s.patternSpace)
+			buf.Write(line[:matches[0]+1])
+			s.patternSpace = buf.Bytes()
+			line = line[matches[0]+1:]
+			continue
 		}
+		buf := bytes.NewBuffer(s.patternSpace)
+		buf.Write(line)
+		s.patternSpace = buf.Bytes()
+		break
 	}
-	return stop, err
+	return false, nil
 }
+
 // E-OF: S_CMD //

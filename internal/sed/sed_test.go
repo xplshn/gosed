@@ -1,28 +1,9 @@
+// sed_test.go
+// sed
 //
-//  sed_test.go
-//  sed
-//
-// Copyright (c) 2009 Geoffrey Clements
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-//
-
+// Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
+// Modified code: Copyright (c) 2024 xplshn (3BSD License)
+// For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
 package sed
 
 import (
@@ -44,7 +25,7 @@ func TestNewCmd(t *testing.T) {
 	// s
 	pieces = []byte{'s', '/', 'o', '/', '0', '/', 'g'}
 	c, err = NewCmd(nil, pieces)
-	sc := c.(*s_cmd)
+	sc := c.(*SCmd)
 	if sc == nil {
 		t.Error("Didn't get a command that we expected")
 	} else if sc.regex != "o" && len(sc.replace) == 1 && sc.replace[0] == '0' && sc.nthOccurance == -1 {
@@ -57,7 +38,7 @@ func TestNewCmd(t *testing.T) {
 func TestNewDCmd(t *testing.T) {
 	pieces := []byte{'d', '/', 'o', '/', '0', '/', 'g'}
 	c, err := NewCmd(nil, pieces)
-	dc := c.(*d_cmd)
+	dc := c.(*DCmd)
 	if dc != nil {
 		t.Error("2: Got a command when we shouldn't have " + c.String())
 	}
@@ -69,7 +50,7 @@ func TestNewDCmd(t *testing.T) {
 
 	pieces = []byte{'d', '/', 'd'}
 	c, err = NewCmd(nil, pieces)
-	dc = c.(*d_cmd)
+	dc = c.(*DCmd)
 	if dc != nil {
 		t.Error("3: Got a command when we shouldn't have " + c.String())
 	}
@@ -81,7 +62,7 @@ func TestNewDCmd(t *testing.T) {
 
 	pieces = []byte{'d'}
 	c, err = NewCmd(nil, pieces)
-	dc = c.(*d_cmd)
+	dc = c.(*DCmd)
 	if dc == nil {
 		t.Error("Didn't get a d command that we expected")
 	} else if err != nil {
@@ -90,7 +71,7 @@ func TestNewDCmd(t *testing.T) {
 
 	pieces = []byte{'$', 'd'}
 	c, err = NewCmd(nil, pieces)
-	dc = c.(*d_cmd)
+	dc = c.(*DCmd)
 	if dc == nil {
 		t.Error("Didn't get a d command that we expected")
 	} else if err != nil {
@@ -99,7 +80,7 @@ func TestNewDCmd(t *testing.T) {
 
 	pieces = []byte{'4', '5', '7', 'd'}
 	c, err = NewCmd(nil, pieces)
-	dc = c.(*d_cmd)
+	dc = c.(*DCmd)
 	if dc == nil {
 		t.Error("Didn't get a d command that we expected")
 	} else if err != nil {
@@ -110,7 +91,7 @@ func TestNewDCmd(t *testing.T) {
 func TestNewNCmd(t *testing.T) {
 	pieces := []byte{'n', '/', 'o', '/', '0', '/', 'g'}
 	c, err := NewCmd(nil, pieces)
-	nc := c.(*n_cmd)
+	nc := c.(*NCmd)
 	if nc != nil {
 		t.Error("4: Got a command when we shouldn't have " + c.String())
 	}
@@ -125,7 +106,7 @@ func TestNewNCmd(t *testing.T) {
 
 	pieces = []byte{'n', '/', 'd'}
 	c, err = NewCmd(nil, pieces)
-	nc = c.(*n_cmd)
+	nc = c.(*NCmd)
 	if nc != nil {
 		t.Error("5: Got a command when we shouldn't have " + c.String())
 	}
@@ -137,7 +118,7 @@ func TestNewNCmd(t *testing.T) {
 
 	pieces = []byte{'n'}
 	c, err = NewCmd(nil, pieces)
-	nc = c.(*n_cmd)
+	nc = c.(*NCmd)
 	if nc == nil {
 		t.Error("Didn't get a n command that we expected")
 	} else if err != nil {
@@ -146,7 +127,7 @@ func TestNewNCmd(t *testing.T) {
 
 	pieces = []byte{'$', 'n'}
 	c, err = NewCmd(nil, pieces)
-	nc = c.(*n_cmd)
+	nc = c.(*NCmd)
 	if nc == nil {
 		t.Error("Didn't get a d command that we expected")
 	} else if err != nil {
@@ -155,7 +136,7 @@ func TestNewNCmd(t *testing.T) {
 
 	pieces = []byte{'4', '5', '7', 'n'}
 	c, err = NewCmd(nil, pieces)
-	nc = c.(*n_cmd)
+	nc = c.(*NCmd)
 	if nc == nil {
 		t.Error("Didn't get a n command that we expected")
 	} else if err != nil {
@@ -166,7 +147,7 @@ func TestNewNCmd(t *testing.T) {
 func TestNewPCmd(t *testing.T) {
 	pieces := []byte{'P', '/', 'o', '/', '0', '/', 'g'}
 	c, err := NewCmd(nil, pieces)
-	pc := c.(*p_cmd)
+	pc := c.(*PCmd)
 	if pc != nil {
 		t.Error("6: Got a command when we shouldn't have " + c.String())
 	}
@@ -181,7 +162,7 @@ func TestNewPCmd(t *testing.T) {
 
 	pieces = []byte{'P', '/', 'd'}
 	c, err = NewCmd(nil, pieces)
-	pc = c.(*p_cmd)
+	pc = c.(*PCmd)
 	if pc != nil {
 		t.Error("7: Got a command when we shouldn't have " + c.String())
 	}
@@ -193,7 +174,7 @@ func TestNewPCmd(t *testing.T) {
 
 	pieces = []byte{'P'}
 	c, err = NewCmd(nil, pieces)
-	pc = c.(*p_cmd)
+	pc = c.(*PCmd)
 	if pc == nil {
 		t.Error("Didn't get a p command that we expected")
 	} else if err != nil {
@@ -202,7 +183,7 @@ func TestNewPCmd(t *testing.T) {
 
 	pieces = []byte{'$', 'P'}
 	c, err = NewCmd(nil, pieces)
-	pc = c.(*p_cmd)
+	pc = c.(*PCmd)
 	if pc == nil {
 		t.Error("Didn't get a p command that we expected")
 	} else if err != nil {
@@ -211,7 +192,7 @@ func TestNewPCmd(t *testing.T) {
 
 	pieces = []byte{'4', '5', '7', 'P'}
 	c, err = NewCmd(nil, pieces)
-	pc = c.(*p_cmd)
+	pc = c.(*PCmd)
 	if pc == nil {
 		t.Error("Didn't get a p command that we expected")
 	} else if err != nil {
@@ -222,7 +203,7 @@ func TestNewPCmd(t *testing.T) {
 func TestNewQCmd(t *testing.T) {
 	pieces := []byte{'q', '/', 'o', '/', '0', '/', 'g'}
 	c, err := NewCmd(nil, pieces)
-	qc := c.(*q_cmd)
+	qc := c.(*QCmd)
 	if err == nil {
 		t.Error("Didn't get an error we expected")
 	} else {
@@ -231,7 +212,7 @@ func TestNewQCmd(t *testing.T) {
 
 	pieces = []byte{'q', '/', 'q'}
 	c, err = NewCmd(nil, pieces)
-	qc = c.(*q_cmd)
+	qc = c.(*QCmd)
 	if qc != nil {
 		t.Error("9: Got a command when we shouldn't have " + c.String())
 	}
@@ -243,7 +224,7 @@ func TestNewQCmd(t *testing.T) {
 
 	pieces = []byte{'q'}
 	c, err = NewCmd(nil, pieces)
-	qc = c.(*q_cmd)
+	qc = c.(*QCmd)
 	if qc == nil {
 		t.Error("Didn't get a q command that we expected")
 	} else if err != nil {
@@ -252,7 +233,7 @@ func TestNewQCmd(t *testing.T) {
 
 	pieces = []byte{'q', '/', '1'}
 	c, err = NewCmd(nil, pieces)
-	qc = c.(*q_cmd)
+	qc = c.(*QCmd)
 	if qc == nil {
 		t.Error("Didn't get a q command that we expected")
 	} else if err != nil {
@@ -261,7 +242,7 @@ func TestNewQCmd(t *testing.T) {
 
 	pieces = []byte{'$', 'q'}
 	c, err = NewCmd(nil, pieces)
-	qc = c.(*q_cmd)
+	qc = c.(*QCmd)
 	if qc == nil {
 		t.Error("Didn't get a q command that we expected")
 	} else if err != nil {
@@ -270,7 +251,7 @@ func TestNewQCmd(t *testing.T) {
 
 	pieces = []byte{'4', '5', '7', 'q'}
 	c, err = NewCmd(nil, pieces)
-	qc = c.(*q_cmd)
+	qc = c.(*QCmd)
 	if qc == nil {
 		t.Error("Didn't get a d command that we expected")
 	} else if err != nil {

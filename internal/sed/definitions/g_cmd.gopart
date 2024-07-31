@@ -1,53 +1,57 @@
 // G_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)g%20Replace%20the%20contents%20of,tents%20of%20the%20hold%20space.
-type g_cmd struct {
+
+// GCmd represents a 'g' command in sed, which replaces or appends the contents of the hold space to the pattern space.
+type GCmd struct {
 	addr    *address
 	replace bool
 }
 
-func (c *g_cmd) match(line []byte, lineNumber int) bool {
-	return c.addr.match(line, lineNumber)
+// match checks if the given line matches the address criteria of the GCmd.
+func (c *GCmd) match(line []byte, lineNumber int) bool {
+    return c.addr.match(line, lineNumber)
 }
 
-func (c *g_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			if c.replace {
-				return fmt.Sprintf("{g command with replace addr:%s}", c.addr.String())
-			} else {
-				return fmt.Sprintf("{g command addr:%s}", c.addr.String())
-			}
-		} else {
-			if c.replace {
-				return fmt.Sprint("{g command with replace}")
-			} else {
-				return fmt.Sprint("{Append a newline and the hold space to the pattern space}")
-			}
-		}
-	}
-	return fmt.Sprint("{Append/Replace pattern space with contents of hold space}")
+// String returns a string representation of the GCmd, including its address and replace status.
+func (c *GCmd) String() string {
+    if c != nil {
+        if c.addr != nil {
+            if c.replace {
+                return fmt.Sprintf("{g command with replace addr:%s}", c.addr.String())
+            }
+            return fmt.Sprintf("{g command addr:%s}", c.addr.String())
+        }
+        if c.replace {
+            return fmt.Sprint("{g command with replace}")
+        }
+        return fmt.Sprint("{Append a newline and the hold space to the pattern space}")
+    }
+    return fmt.Sprint("{Append/Replace pattern space with contents of hold space}")
 }
 
-func (c *g_cmd) processLine(s *Sed) (bool, error) {
-	if c.replace {
-		s.patternSpace = copyByteSlice(s.holdSpace)
-	} else {
-		buf := bytes.NewBuffer(s.patternSpace)
-		buf.WriteRune('\n')
-		buf.Write(s.holdSpace)
-		s.patternSpace = buf.Bytes()
-	}
-	return false, nil
+// processLine processes the input line for the GCmd, replacing or appending the hold space as specified.
+func (c *GCmd) processLine(s *Sed) (bool, error) {
+    if c.replace {
+        s.patternSpace = copyByteSlice(s.holdSpace)
+    } else {
+        buf := bytes.NewBuffer(s.patternSpace)
+        buf.WriteRune('\n')
+        buf.Write(s.holdSpace)
+        s.patternSpace = buf.Bytes()
+    }
+    return false, nil
 }
 
-func NewGCmd(pieces [][]byte, addr *address) (*g_cmd, error) {
-	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
-	}
-	cmd := new(g_cmd)
-	if pieces[0][0] == 'g' {
-		cmd.replace = true
-	}
-	cmd.addr = addr
-	return cmd, nil
+// NewGCmd creates a new GCmd instance from the given pieces of input and address.
+func NewGCmd(pieces [][]byte, addr *address) (*GCmd, error) {
+    if len(pieces) > 1 {
+        return nil, ErrWrongNumberOfCommandParameters
+    }
+    cmd := new(GCmd)
+    if pieces[0][0] == 'g' {
+        cmd.replace = true
+    }
+    cmd.addr = addr
+    return cmd, nil
 }
+
 // E-OF: G_CMD //

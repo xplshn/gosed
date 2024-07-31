@@ -1,30 +1,37 @@
 // EQL_CMD //
-type eql_cmd struct {
+
+// EqlCmd represents an '=' command in sed, which prints the current line number.
+type EqlCmd struct {
 	addr *address
 }
 
-func (c *eql_cmd) match(line []byte, lineNumber int) bool {
-	return c.addr.match(line, lineNumber)
+// match checks if the given line matches the address criteria of the EqlCmd.
+func (c *EqlCmd) match(line []byte, lineNumber int) bool {
+    return c.addr.match(line, lineNumber)
 }
 
-func (c *eql_cmd) String() string {
-	if c != nil && c.addr != nil {
-		return fmt.Sprintf("{= command addr: %s}", c.addr.String())
-	}
-	return fmt.Sprint("{= command}")
+// String returns a string representation of the EqlCmd, including its address.
+func (c *EqlCmd) String() string {
+    if c != nil && c.addr != nil {
+        return fmt.Sprintf("{= command addr: %s}", c.addr.String())
+    }
+    return fmt.Sprint("{= command}")
 }
 
-func (c *eql_cmd) processLine(s *Sed) (bool, error) {
-	fmt.Fprintf(os.Stdout, "\n%d\n", s.lineNumber)
-	return false, nil
+// processLine processes the input line for the EqlCmd, printing the current line number.
+func (c *EqlCmd) processLine(s *Sed) (bool, error) {
+    fmt.Fprintf(os.Stdout, "\n%d\n", s.lineNumber)
+    return false, nil
 }
 
-func NewEqlCmd(pieces [][]byte, addr *address) (*eql_cmd, error) {
-	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
-	}
-	cmd := new(eql_cmd)
-	cmd.addr = addr
-	return cmd, nil
+// NewEqlCmd creates a new EqlCmd instance from the given pieces of input and address.
+func NewEqlCmd(pieces [][]byte, addr *address) (*EqlCmd, error) {
+    if len(pieces) > 1 {
+        return nil, ErrWrongNumberOfCommandParameters
+    }
+    cmd := new(EqlCmd)
+    cmd.addr = addr
+    return cmd, nil
 }
+
 // E-OF: EQL_CMD //

@@ -1,42 +1,48 @@
 // C_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)c%5C,output.%20%20Start%20the%20next%20cycle. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)c%5C,output.%20%20Start%20the%20next%20cycle.
-type c_cmd struct {
+
+// CCmd represents a 'c' command in sed, which replaces lines that match the address with specified text.
+type CCmd struct {
 	addr *address
 	text []byte
 }
 
-func (c *c_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the CCmd.
+func (c *CCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *c_cmd) String() string {
-	if c != nil {
-		if c.addr != nil {
-			return fmt.Sprintf("{c command addr:%s text:%s}", c.addr.String(), c.text)
-		}
-		return fmt.Sprintf("{c command text:%s}", c.text)
-	}
-	return fmt.Sprintf("{c command}")
-}
-
-func (c *c_cmd) printText(s *Sed) {
-	// we are going to get the newline from the
-	s.outputFile.Write(c.text)
-}
-
-func (c *c_cmd) processLine(s *Sed) (bool, error) {
-	s.patternSpace = s.patternSpace[0:0]
+// String returns a string representation of the CCmd, including its address and text.
+func (c *CCmd) String() string {
 	if c.addr != nil {
-		switch c.addr.address_type {
-		case ADDRESS_RANGE:
+		return fmt.Sprintf("{c command addr:%s text:%s}", c.addr.String(), string(c.text))
+	}
+	return fmt.Sprintf("{c command text:%s}", string(c.text))
+}
+
+// printText writes the command's text to the output file.
+func (c *CCmd) printText(s *Sed) {
+	_, err := s.outputFile.Write(c.text)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing text: %v\n", err)
+	}
+}
+
+// processLine processes the input line for the CCmd, replacing the content based on the address.
+func (c *CCmd) processLine(s *Sed) (bool, error) {
+	s.patternSpace = s.patternSpace[:0]
+	if c.addr != nil {
+		switch c.addr.addressType {
+		case addressRange:
 			if s.lineNumber+1 == c.addr.rangeEnd {
 				c.printText(s)
 				return true, nil
 			}
-		case ADDRESS_LINE, ADDRESS_REGEX, ADDRESS_LAST_LINE:
+		case addressLine, addressRegEx, addressLastLine:
 			c.printText(s)
 			return true, nil
-		case ADDRESS_TO_END_OF_FILE:
-			// FIX need to output at end of file
+		case addressToEndOfFile:
+			// Output at end of file is not handled here
+			fmt.Fprintln(os.Stderr, "TODO: Handle output at end of file")
 		}
 	} else {
 		c.printText(s)
@@ -45,21 +51,24 @@ func (c *c_cmd) processLine(s *Sed) (bool, error) {
 	return false, nil
 }
 
-func NewCCmd(s *Sed, line []byte, addr *address) (*c_cmd, error) {
-	cmd := new(c_cmd)
-	cmd.addr = addr
-	cmd.text = line[1:]
+// NewCCmd creates a new CCmd instance from the given Sed object, line of input, and address.
+func NewCCmd(s *Sed, line []byte, addr *address) (*CCmd, error) {
+	cmd := &CCmd{
+		addr: addr,
+		text: line[1:],
+	}
 	for bytes.HasSuffix(cmd.text, []byte{'\\'}) {
-		cmd.text = cmd.text[0 : len(cmd.text)-1]
-		line, err := s.getNextScriptLine()
+		cmd.text = cmd.text[:len(cmd.text)-1]
+		nextLine, err := s.getNextScriptLine()
 		if err != nil {
-			break
+			return nil, err
 		}
 		buf := bytes.NewBuffer(cmd.text)
 		buf.WriteRune('\n')
-		buf.Write(line)
+		buf.Write(nextLine)
 		cmd.text = buf.Bytes()
 	}
 	return cmd, nil
 }
+
 // E-OF: C_CMD //

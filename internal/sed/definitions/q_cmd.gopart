@@ -1,46 +1,52 @@
 // Q_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)q%20Quit.%20%20Branch%20to%20the,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20new%20cycle. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)q%20Quit.%20%20Branch%20to%20the,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20new%20cycle.
-type q_cmd struct {
-	addr      *address
-	exit_code int
+
+// QCmd represents a 'q' command in sed, which terminates the sed process with a specified exit code.
+type QCmd struct {
+	addr     *address
+	exitCode int // The exit code to return when the 'q' command is executed
 }
 
-func (c *q_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the QCmd.
+func (c *QCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *q_cmd) String() string {
+// String returns a string representation of the QCmd, including its address and exit code.
+func (c *QCmd) String() string {
 	if c != nil {
 		if c.addr != nil {
-			return fmt.Sprintf("{q command addr:%s with exit code: %d}", c.addr.String(), c.exit_code)
+			return fmt.Sprintf("{q command addr:%s with exit code: %d}", c.addr.String(), c.exitCode)
 		}
-		return fmt.Sprintf("{q command with exit code: %d}", c.exit_code)
+		return fmt.Sprintf("{q command with exit code: %d}", c.exitCode)
 	}
 	return fmt.Sprint("{q command}")
 }
 
-func NewQCmd(pieces [][]byte, addr *address) (c *q_cmd, err error) {
-	err = nil
-	c = nil
+// NewQCmd creates a new QCmd instance from the given pieces and address.
+// It parses the exit code if provided, or defaults to 0.
+func NewQCmd(pieces [][]byte, addr *address) (*QCmd, error) {
+	var err error
+	cmd := &QCmd{
+		addr: addr,
+	}
 	switch len(pieces) {
 	case 2:
-		c = new(q_cmd)
-		c.addr = addr
-		c.exit_code, err = strconv.Atoi(string(pieces[1]))
+		cmd.exitCode, err = strconv.Atoi(string(pieces[1]))
 		if err != nil {
-			c = nil
+			return nil, err
 		}
 	case 1:
-		c = new(q_cmd)
-		c.addr = addr
-		c.exit_code = 0
+		cmd.exitCode = 0
 	default:
-		c, err = nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	return c, err
+	return cmd, nil
 }
 
-func (c *q_cmd) processLine(s *Sed) (stop bool, err error) {
-	os.Exit(c.exit_code)
+// processLine terminates the sed process with the exit code specified in the QCmd.
+func (c *QCmd) processLine(_ *Sed) (bool, error) {
+	os.Exit(c.exitCode)
 	return false, nil
 }
+
 // E-OF: Q_CMD //

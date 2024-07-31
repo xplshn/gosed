@@ -1,24 +1,35 @@
 // N_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.) // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)n%20Copy%20the%20pattern%20space,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20changes.)
-type n_cmd struct {
+
+// NCmd represents an 'n' command in sed, which either prints the pattern space and replaces it with the next line ('n') or appends the next line of input to the pattern space ('N').
+type NCmd struct {
 	addr   *address
 	append bool // Distinguishes between 'n' (false) and 'N' (true)
 }
 
-func (c *n_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the NCmd.
+func (c *NCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *n_cmd) String() string {
-	if c != nil && c.addr != nil {
-		if c.append {
-			return fmt.Sprintf("{N command addr:%s}", c.addr.String())
+// String returns a string representation of the NCmd, including its address and whether it appends or replaces.
+func (c *NCmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.append {
+				return fmt.Sprintf("{N command addr:%s}", c.addr.String())
+			}
+			return fmt.Sprintf("{n command addr:%s}", c.addr.String())
 		}
-		return fmt.Sprintf("{n command addr:%s}", c.addr.String())
+		if c.append {
+			return fmt.Sprint("{N command}")
+		}
+		return fmt.Sprint("{n command}")
 	}
 	return fmt.Sprint("{n/N command}")
 }
 
-func (c *n_cmd) processLine(s *Sed) (bool, error) {
+// processLine processes the input line for the NCmd. It either prints the pattern space and replaces it with the next line or appends the next line to the pattern space.
+func (c *NCmd) processLine(s *Sed) (bool, error) {
 	if c.append {
 		// N: Append the next line of input to the pattern space
 		nextLine, err := s.input.ReadBytes('\n')
@@ -28,7 +39,7 @@ func (c *n_cmd) processLine(s *Sed) (bool, error) {
 			}
 			return false, err
 		}
-		s.patternSpace = append(s.patternSpace, newLine...)
+		s.patternSpace = append(s.patternSpace, '\n')
 		s.patternSpace = append(s.patternSpace, nextLine...)
 	} else {
 		// n: Print and replace pattern space with the next line
@@ -47,14 +58,16 @@ func (c *n_cmd) processLine(s *Sed) (bool, error) {
 	return true, nil
 }
 
-func NewNCmd(pieces [][]byte, addr *address) (*n_cmd, error) {
+// NewNCmd creates a new NCmd instance from the given pieces and address.
+func NewNCmd(pieces [][]byte, addr *address) (*NCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := &n_cmd{
+	cmd := &NCmd{
 		addr:   addr,
 		append: pieces[0][0] == 'N',
 	}
 	return cmd, nil
 }
+
 // E-OF: N_CMD //

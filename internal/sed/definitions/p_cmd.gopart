@@ -1,38 +1,56 @@
 // P_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)p%20Print.%20%20Copy%20the%20pattern,newline%20to%20the%20standard%20output. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)p%20Print.%20%20Copy%20the%20pattern,newline%20to%20the%20standard%20output.
-type p_cmd struct {
+
+// PCmd represents a 'p' command in sed, which prints the pattern space. It can be configured to print up to the first newline or the entire pattern space.
+type PCmd struct {
 	addr        *address
-	upToNewLine bool
+	upToNewLine bool // If true, prints only up to the first newline; otherwise, prints the entire pattern space
 }
 
-func (c *p_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the PCmd.
+func (c *PCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *p_cmd) String() string {
-	if c != nil && c.addr != nil {
-		return fmt.Sprintf("{p command addr:%s}", c.addr.String())
+// String returns a string representation of the PCmd, including its address and whether it prints up to a newline.
+func (c *PCmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			if c.upToNewLine {
+				return fmt.Sprintf("{p command addr:%s up to newline}", c.addr.String())
+			}
+			return fmt.Sprintf("{p command addr:%s}", c.addr.String())
+		}
+		if c.upToNewLine {
+			return fmt.Sprint("{p command up to newline}")
+		}
+		return fmt.Sprint("{p command}")
 	}
 	return fmt.Sprint("{p command}")
 }
 
-func (c *p_cmd) processLine(s *Sed) (bool, error) {
-	// print output space
+// processLine processes the pattern space for the PCmd. It either prints up to the first newline or the entire pattern space.
+func (c *PCmd) processLine(s *Sed) (bool, error) {
 	if c.upToNewLine {
-		firstLine := bytes.SplitN(s.patternSpace, []byte{'\n'}, 1)[0]
+		// Print only up to the first newline
+		firstLine := bytes.SplitN(s.patternSpace, []byte{'\n'}, 2)[0]
 		fmt.Fprintln(s.outputFile, string(firstLine))
 	} else {
+		// Print the entire pattern space
 		fmt.Fprintln(s.outputFile, string(s.patternSpace))
 	}
 	return false, nil
 }
 
-func NewPCmd(pieces [][]byte, addr *address) (*p_cmd, error) {
+// NewPCmd creates a new PCmd instance from the given pieces and address.
+func NewPCmd(pieces [][]byte, addr *address) (*PCmd, error) {
 	if len(pieces) > 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(p_cmd)
-	cmd.addr = addr
-	cmd.upToNewLine = pieces[0][0] == 'P'
+	cmd := &PCmd{
+		addr:        addr,
+		upToNewLine: pieces[0][0] == 'P',
+	}
 	return cmd, nil
 }
+
 // E-OF: P_CMD //

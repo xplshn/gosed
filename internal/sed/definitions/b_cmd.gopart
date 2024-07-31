@@ -1,14 +1,18 @@
 // B_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)b%20label,the%20end%20of%20the%20script. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)b%20label,the%20end%20of%20the%20script.
-type b_cmd struct {
+
+// BCmd represents a 'b' command in sed, which branches to a specified label
+type BCmd struct {
 	addr  *address
 	label string
 }
 
-func (c *b_cmd) match(line []byte, lineNumber int) bool {
+// match checks if the given line matches the address criteria of the bCmd.
+func (c *BCmd) match(line []byte, lineNumber int) bool {
 	return c.addr.match(line, lineNumber)
 }
 
-func (c *b_cmd) String() string {
+// String returns a string representation of the BCmd, including its label and address
+func (c *BCmd) String() string {
 	if c != nil {
 		if c.addr != nil {
 			return fmt.Sprintf("{b command label: %s Cmd addr:%s}", c.label, c.addr.String())
@@ -18,17 +22,19 @@ func (c *b_cmd) String() string {
 	return fmt.Sprintf("{b command}")
 }
 
-func (c *b_cmd) processLine(s *Sed) (bool, error) {
-	return true, NotImplemented
+// processLine processes the input line for the BCmd. It returns an error indicating the function is not implemented.
+func (c *BCmd) processLine(_ *Sed) (bool, error) {
+	return true, ErrNotImplemented
 }
-
-func NewBCmd(pieces [][]byte, addr *address) (*b_cmd, error) {
+// NewBCmd creates a new BCmd instance from the given pieces of input and address
+func NewBCmd(pieces [][]byte, addr *address) (*BCmd, error) {
 	if len(pieces) != 1 {
-		return nil, WrongNumberOfCommandParameters
+		return nil, ErrWrongNumberOfCommandParameters
 	}
-	cmd := new(b_cmd)
+	cmd := new(BCmd)
 	cmd.addr = addr
 	cmd.label = string(bytes.TrimSpace(pieces[0][1:]))
 	return cmd, nil
 }
+
 // E-OF: B_CMD //

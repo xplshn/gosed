@@ -1,28 +1,9 @@
+// cmd.go
+// sed
 //
-//  cmd.go
-//  sed
-//
-// Copyright (c) 2009 Geoffrey Clements
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-//
-
+// Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
+// Modified code: Copyright (c) 2024 xplshn (3BSD License)
+// For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
 package sed
 
 import (
@@ -33,54 +14,57 @@ import (
 	"strconv"
 )
 
+// Err definitions
 var (
-	WrongNumberOfCommandParameters error = errors.New("Wrong number of parameters for command")
-	UnknownScriptCommand           error = errors.New("Unknown script command")
-	InvalidSCommandFlag            error = errors.New("Invalid flag for s command")
-	RegularExpressionExpected      error = errors.New("Expected a regular expression, got zero length string")
-	UnterminatedRegularExpression  error = errors.New("Unterminated regular expression")
-	NoSupportForTwoAddress         error = errors.New("This command doesn't support an address range or to end of file")
-	NotImplemented                 error = errors.New("This command command hasn't been implemented yet")
+	ErrWrongNumberOfCommandParameters = errors.New("Wrong number of parameters for command")
+	ErrUnknownScriptCommand           = errors.New("Unknown script command")
+	ErrInvalidSCommandFlag            = errors.New("Invalid flag for s command")
+	ErrRegularExpressionExpected      = errors.New("Expected a regular expression, got zero length string")
+	ErrUnterminatedRegularExpression  = errors.New("Unterminated regular expression")
+	ErrNoSupportForTwoAddress         = errors.New("This command doesn't support an address range or to end of file")
+	ErrNotImplemented                 = errors.New("This command command hasn't been implemented yet")
 )
 
+// Cmd represents a command that can be executed by the Sed processor // It includes methods for processing lines and converting the command to a string.
 type Cmd interface {
 	fmt.Stringer
 	processLine(s *Sed) (stop bool, err error)
 }
 
+// Address represents a pattern or address that can be matched against a line of input // It includes a method to determine if the address matches the given line and line number.
 type Address interface {
 	match(line []byte, lineNumber int) bool
 }
 
 const (
-	ADDRESS_LINE = iota
-	ADDRESS_RANGE
-	ADDRESS_TO_END_OF_FILE
-	ADDRESS_LAST_LINE
-	ADDRESS_REGEX
+	addressLine = iota
+	addressRange
+	addressToEndOfFile
+	addressLastLine
+	addressRegEx
 )
 
 type address struct {
-	not          bool
-	address_type int
-	rangeStart   int
-	rangeEnd     int
-	regex        *regexp.Regexp
+	not         bool
+	addressType int
+	rangeStart  int
+	rangeEnd    int
+	regex       *regexp.Regexp
 }
 
 func (a *address) getTypeAsString() string {
 	if a != nil {
-		switch a.address_type {
-		case ADDRESS_LINE:
-			return "ADDRESS_LINE"
-		case ADDRESS_RANGE:
-			return "ADDRESS_RANGE"
-		case ADDRESS_TO_END_OF_FILE:
-			return "ADDRESS_TO_END_OF_FILE"
-		case ADDRESS_LAST_LINE:
-			return "ADDRESS_LAST_LINE"
-		case ADDRESS_REGEX:
-			return "ADDRESS_REGEX"
+		switch a.addressType {
+		case addressLine:
+			return "addressLine"
+		case addressRange:
+			return "addressRange"
+		case addressToEndOfFile:
+			return "addressToEndOfFile"
+		case addressLastLine:
+			return "addressLastLine"
+		case addressRegEx:
+			return "addressRegEx"
 		default:
 			return "ADDRESS_UNKNOWN"
 		}
@@ -95,16 +79,16 @@ func (a *address) String() string {
 func (a *address) match(line []byte, lineNumber int) bool {
 	val := true
 	if a != nil {
-		switch a.address_type {
-		case ADDRESS_LINE:
+		switch a.addressType {
+		case addressLine:
 			val = lineNumber == a.rangeStart
-		case ADDRESS_RANGE:
+		case addressRange:
 			val = lineNumber >= a.rangeStart && lineNumber <= a.rangeEnd
-		case ADDRESS_TO_END_OF_FILE:
+		case addressToEndOfFile:
 			val = lineNumber >= a.rangeStart
-		case ADDRESS_LAST_LINE:
+		case addressLastLine:
 			val = false // this is wrong!
-		case ADDRESS_REGEX:
+		case addressRegEx:
 			val = a.regex.Match(line)
 		default:
 			val = false
@@ -139,16 +123,16 @@ func checkForAddress(s []byte) ([]byte, *address, error) {
 		s = s[1:]
 		idx := bytes.IndexByte(s, '/')
 		if idx < 0 {
-			return s, nil, UnterminatedRegularExpression
+			return s, nil, ErrUnterminatedRegularExpression
 		}
 		r := s[0:idx]
 		if len(r) == 0 {
-			return s, nil, RegularExpressionExpected
+			return s, nil, ErrRegularExpressionExpected
 		}
 		// s is now just the command
 		s = s[idx+1:]
 		addr := new(address)
-		addr.address_type = ADDRESS_REGEX
+		addr.addressType = addressRegEx
 		addr.regex, err = regexp.CompilePOSIX(string(r))
 		if err != nil {
 			return s, nil, err
@@ -157,14 +141,14 @@ func checkForAddress(s []byte) ([]byte, *address, error) {
 	} else if s[0] == '$' {
 		// end of file
 		addr := new(address)
-		addr.address_type = ADDRESS_LAST_LINE
+		addr.addressType = addressLastLine
 		// s is now just the command
 		s = s[1:]
 		return s, addr, nil
 	} else if s[0] >= '0' && s[0] <= '9' {
 		// numeric line address
 		addr := new(address)
-		addr.address_type = ADDRESS_LINE
+		addr.addressType = addressLine
 		s, addr.rangeStart, err = getNumberFromLine(s)
 		if err != nil {
 			return s, nil, err
@@ -173,18 +157,18 @@ func checkForAddress(s []byte) ([]byte, *address, error) {
 		if s[0] == ',' {
 			s = s[1:]
 			if len(s) > 0 && s[0] >= '0' && s[0] <= '9' {
-				addr.address_type = ADDRESS_RANGE
+				addr.addressType = addressRange
 				s, addr.rangeEnd, err = getNumberFromLine(s)
 				if err != nil {
 					return s, nil, err
 				}
 				// if end range is less than start only match single line
 				if addr.rangeEnd < addr.rangeStart {
-					addr.address_type = ADDRESS_LINE
+					addr.addressType = addressLine
 					addr.rangeEnd = 0
 				}
 			} else {
-				addr.address_type = ADDRESS_TO_END_OF_FILE
+				addr.addressType = addressToEndOfFile
 			}
 		}
 		if s[0] == '!' {
@@ -196,6 +180,18 @@ func checkForAddress(s []byte) ([]byte, *address, error) {
 	return s, nil, nil
 }
 
+// NewCmd creates a new Cmd instance based on the given Sed object and line of input.
+// It parses the line to determine the appropriate command type and returns an instance
+// of the corresponding command. It also processes any addresses specified in the line.
+//
+// Parameters:
+//
+//	s - The Sed object used to execute commands.
+//	line - The line of input that specifies the command and address.
+//
+// Returns:
+//
+//	A Cmd instance corresponding to the specified command or an error if the command is unknown.
 func NewCmd(s *Sed, line []byte) (Cmd, error) {
 
 	var err error
@@ -236,5 +232,5 @@ func NewCmd(s *Sed, line []byte) (Cmd, error) {
 		}
 	}
 
-	return nil, UnknownScriptCommand
+	return nil, ErrUnknownScriptCommand
 }
