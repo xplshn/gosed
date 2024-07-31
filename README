@@ -6,6 +6,9 @@ W.I.P: Removing old Go conventions and making the codebase more idiomatic
 - Added: Made this work, compile and run the tests just fine within Go1.20+
 - Added: Hope and faith
 - Added: Better Usage/Help page using "Consistent CMD"(ccmd) from [https://github.com/xplshn/a-utils](https://github.com/xplshn/a-utils/tree/master/pkg/ccmd)
+- Removed non-POSIX flag `-l`
+- Fixed +50 warnings/errors `revive` detected
+- Added comments to the code
 
 ORIGINAL README
 ---------------
