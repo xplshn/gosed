@@ -2,6 +2,7 @@ Fork of GoSed for https://github.com/xplshn/a-utils
 
 W.I.P: Removing old Go conventions and making the codebase more idiomatic
 
+- Using POSIX RegExps
 - Added: Support for both 'n' and 'N' in n_cmd.go
 - Added: Made this work, compile and run the tests just fine within Go1.20+
 - Added: Hope and faith
