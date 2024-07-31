@@ -1,6 +1,7 @@
 Fork of GoSed for https://github.com/xplshn/a-utils
 
-W.I.P: Removing old Go conventions and making the codebase more idiomatic
+W.I.P: Removing old Go conventions and making the codebase more idiomatic.
+
 W.I.P: Implement all of the functionality/commands described in [Unix's 10th edition `Sed` implementation](https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed), OpenBSD's `sed` [`manpage`](https://man.openbsd.org/sed.1) as reference when clarification is needed. 
 
 - Using POSIX RegExps
