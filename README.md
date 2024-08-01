@@ -6,6 +6,7 @@ W.I.P: Implement all of the functionality/commands described in [Unix's 10th edi
 
 - Using POSIX RegExps
 - Added: Support for both 'n' and 'N' in n_cmd.go
+- Added: Support for 'x', implemented within x_cmd.go
 - Added: Made this work, compile and run the tests just fine within Go1.20+
 - Added: Hope and faith
 - Added: Better Usage/Help page using "Consistent CMD"(ccmd) from [https://github.com/xplshn/a-utils](https://github.com/xplshn/a-utils/tree/master/pkg/ccmd)
