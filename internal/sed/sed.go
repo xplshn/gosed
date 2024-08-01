@@ -115,13 +115,23 @@ func (s *Sed) parseScript(scriptBuffer []byte) (err error) {
 			continue
 		}
 
-		// Check if the line is a comment
-		if line[0] == '#' {
+		// Check if the line is a comment and skip it
+		if len(line) > 0 && line[0] == '#' {
 			// Special case for -n flag
 			if len(line) > 1 && line[1] == 'n' && s.scriptLineNumber == 1 {
 				*quiet = true
 			}
 			continue
+		}
+
+		// Remove comments from the line
+		if commentIndex := bytes.IndexByte(line, '#'); commentIndex != -1 {
+			line = line[:commentIndex]
+			line = trimSpaceFromBeginning(line)
+			if len(line) == 0 {
+				// Skip lines that become empty after removing comments
+				continue
+			}
 		}
 
 		// Process the command

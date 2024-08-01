@@ -1,0 +1,41 @@
+// X_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)x%20Exchange%20the%20contents%20of%20the%20pattern%20and%20hold%20spaces. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(2)x%20Exchange%20the%20contents%20of%20the%20pattern%20and%20hold%20spaces.
+
+// XCmd represents an 'x' command in sed, which exchanges the contents of the pattern and hold spaces.
+type XCmd struct {
+	addr *address
+}
+
+// match checks if the given line matches the address criteria of the XCmd.
+func (c *XCmd) match(line []byte, lineNumber int) bool {
+	return c.addr.match(line, lineNumber)
+}
+
+// String returns a string representation of the XCmd, including its address.
+func (c *XCmd) String() string {
+	if c != nil {
+		if c.addr != nil {
+			return fmt.Sprintf("{x command addr:%s}", c.addr.String())
+		}
+		return fmt.Sprintf("{x command}")
+	}
+	return fmt.Sprintf("{x command}")
+}
+
+// processLine processes the input line for the XCmd, exchanging the contents of the pattern and hold spaces.
+func (c *XCmd) processLine(s *Sed) (bool, error) {
+	// Exchange the contents of the pattern space and hold space
+	s.patternSpace, s.holdSpace = s.holdSpace, s.patternSpace
+	return false, nil
+}
+
+// NewXCmd creates a new XCmd instance from the given pieces of input and address.
+func NewXCmd(pieces [][]byte, addr *address) (*XCmd, error) {
+	if len(pieces) > 1 {
+		return nil, ErrWrongNumberOfCommandParameters
+	}
+	cmd := new(XCmd)
+	cmd.addr = addr
+	return cmd, nil
+}
+
+// E-OF: X_CMD //

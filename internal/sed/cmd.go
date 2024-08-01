@@ -229,8 +229,9 @@ func NewCmd(s *Sed, line []byte) (Cmd, error) {
 			return NewSCmd(bytes.Split(line, []byte{'/'}), addr)
 		case '=':
 			return NewEqlCmd(bytes.Split(line, []byte{'/'}), addr)
+		case 'x':
+			return NewXCmd(bytes.Split(line, []byte{'/'}), addr)
 		}
 	}
-
 	return nil, ErrUnknownScriptCommand
 }
