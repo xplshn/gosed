@@ -6,6 +6,6 @@
 // For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
 package main
 
-import "gosed/internal/sed"
+import "gosed/internal"
 
 func main() { sed.Main() }

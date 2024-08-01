@@ -4,6 +4,8 @@
 // Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
 // Modified code: Copyright (c) 2024 xplshn (3BSD License)
 // For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
+
+// Package sed implements the entire program. This specific part would be like a main.go. From here we call all the other parts of the ./interna/sed/* structure
 package sed
 
 import (

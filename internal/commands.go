@@ -8,7 +8,7 @@
 // In order to generate commands.go, you must do `cat ./definitions/*.gopart > ./commands.go`
 // This is why a_cmd.gopart is the only file that includes the License header
 
-// A_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line.
+// Package sed implements the entire program
 package sed
 
 import (
@@ -24,7 +24,9 @@ import (
 const (
 	globalReplace = -1
 )
+// E-OF-HEADER
 
+// A_CMD // As defined in: https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line. // PERMALINK: https://web.archive.org/web/20240730163415/https://man.cat-v.org/unix_10th/1/sed#:~:text=(1)a%5C,%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20next%20input%20line.
 
 // ACmd represents an 'a' command in sed.
 type ACmd struct {
@@ -416,9 +418,7 @@ func (c *ICmd) String() string {
 }
 
 // processLine processes the input line for the ICmd. It does not alter the pattern space.
-func (c *ICmd) processLine(s *Sed) (bool, error) {
-	s.patternSpace = append([]byte{}, c.text...)
-	s.patternSpace = append(s.patternSpace, '\n')
+func (c *ICmd) processLine(_ *Sed) (bool, error) {
 	return false, nil
 }
 

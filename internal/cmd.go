@@ -4,6 +4,8 @@
 // Original code: Copyright (c) 2009 Geoffrey Clements (MIT License)
 // Modified code: Copyright (c) 2024 xplshn (3BSD License)
 // For details, see the [LICENSE](https://github.com/xplshn/gosed) file at the root directory of this project
+
+// Package sed implements the entire program, from this specific part, we define errors and handle expressions
 package sed
 
 import (
